@@ -27,37 +27,36 @@ exception Empty
 
 module type ATOM = Mheap.ATOM
 
-module Make (Atom: ATOM) (* : Mheap.S *) =
+module PairingHeap (Atom: ATOM) (* : Mheap.S *) =
 struct
   type atom = Atom.t
-  type t = E | T of int * atom * t * t
-
-  let rank = function E -> 0 | T (r,_,_,_) -> r
-
-  let makeT x a b =
-    if rank a >= rank b then T (rank b + 1, x, a, b)
-    else T (rank a + 1, x, b, a)
+  type t = E | T of atom * t list
 
   let empty = E
   let is_empty h = h = E
 
-  let rec merge h1 h2 = match h1, h2 with
+  let merge h1 h2 = match h1, h2 with
     | _, E -> h1
     | E, _ -> h2
-    | T (_, x, a1, b1), T (_, y, a2, b2) ->
-      if Atom.compare x y <= 0 then makeT x a1 (merge b1 h2)
-      else makeT y a2 (merge h1 b2)
+    | T (x, hs1), T (y, hs2) ->
+        if Atom.compare x y <= 0 then T (x, h2 :: hs1)
+        else T (y, h1 :: hs2)
 
-  let insert x h = merge (T (1, x, E, E)) h
-  let find_min = function E -> raise Empty | T (_, x, _, _) -> x
-  let delete_min = function E -> raise Empty | T (_, x, a, b) -> x, merge a b
+  let insert x h = merge (T (x, [])) h
 
-  let rec elements h =
-    if is_empty h then []
-    else
-      let min = find_min h in
-      let x, h' = delete_min h in
-      min::(elements h')
+  let rec merge_pairs = function
+    | [] -> E
+    | [h] -> h
+    | h1 :: h2 :: hs -> merge (merge h1 h2) (merge_pairs hs)
+
+  let find_min = function
+    | E -> raise Empty
+    | T (x, _) -> x
+
+  let delete_min = function
+    | E -> raise Empty
+    | T (x, hs) -> x, merge_pairs hs
+
 
   (* Patching *)
   type edit =

@@ -87,53 +87,31 @@ struct
   type patch = edit list
 
   let op_diff xt yt =
-    let heap_cmp hx hy =
+    let rec heap_diff hx hy =
       match hx, hy with
-      | [], [] ->  0
-      | [], _ -> -1 (* hx < hy *) 
-      | _, [] ->  1 (* hx > hy *)
+      | [], [] -> []
+      | [], _ ->
+        let m, hy = delete_min hy in
+        Insert m :: heap_diff hx hy
+      | _, [] ->
+        let m, hx = delete_min hx in
+        Delete m :: heap_diff hx hy
       | _, _ ->
-        let mx = find_min hx in
-        let my = find_min hy in 
-        Atom.compare mx my in
-    let ahi = Aheap.insert heap_cmp in
-    let rec diff_heap edits ah1s ah2s =
-      if Aheap.is_empty ah1s then
-        let h2 = Aheap.fold_u merge empty ah2s in
-        let e = List.fold_right (fun x y -> Insert x :: y) (elements h2) [] in
-        e, Aheap.empty, Aheap.empty
-      else if Aheap.is_empty ah2s then
-        let h1 = Aheap.fold_u merge empty ah1s in
-        let e = List.fold_right (fun x y -> Delete x :: y) (elements h1) [] in
-        e, Aheap.empty, Aheap.empty
-      else
-        let h1, h1r = Aheap.delete_min heap_cmp ah1s in
-        let h2, h2r  = Aheap.delete_min heap_cmp ah2s in
-        match h1, h2 with
-        | [], [] -> diff_heap edits h1r h2r
-        | [], _ -> diff_heap edits h1r ah2s
-        | _, [] -> diff_heap edits ah1s h2r
-        | _, _ ->
-          let a1 = find_min h1 in
-          let a2 = find_min h2 in
-          let c = Atom.compare a1 a2 in
-          if c = 0 then (* a1 = a2 *)
-            let _, h11 = remove_min_tree h1 in 
-            let h1n = ahi h11 h1r in
-            let _, h21 = remove_min_tree h2 in 
-            let h2n = ahi h21 h2r in
-            diff_heap edits h1n h2n
-          else if c < 0 then (* a1 < a2 *)
-            let _, h11 = remove_min_tree h1 in 
-            let h1n = ahi h11 h1r in
-            diff_heap (Delete a1 :: edits) h1n h2r
-          else
-            let _, h21 = remove_min_tree h2 in 
-            let h2n = ahi h21 h2r in
-            diff_heap (Insert a2 :: edits) h1r h2n
-    in 
-    let edits, _, _ = diff_heap [] (ahi xt Aheap.empty) (ahi yt Aheap.empty) in
-    edits
+        let a1 = find_min hx in
+        let a2 = find_min hy in
+        let c = Atom.compare a1 a2 in
+        if c = 0 then
+          let _, hy = delete_min hy in
+          let _, hx = delete_min hx in
+          heap_diff hx hy
+        else if c < 0 then (* a1 < a2 *)
+          let _, hy = delete_min hy in
+          Delete a1 :: heap_diff hx hy
+        else (* c > 0 = a1 > a2 *)
+          let _, hx = delete_min hx in
+          Insert a2 :: heap_diff hx hy
+    in
+    heap_diff xt yt
 
   let op_transform p q = 
     let rec transform_aux xs ys =
