@@ -1,68 +1,10 @@
-(**************************************************************************)
-(*                                                                        *)
-(*   Xavier Leroy, projet Cristal, INRIA Rocquencourt                     *)
-(*                                                                        *)
-(*   Copyright 1996 INRIA                                                 *)
-(*                                                                        *)
-(*   All rights reserved.  This file is distributed under the terms of    *)
-(*   the GNU Lesser General Public License version 2.1, with the          *)
-(*   special exception on linking described in the file LICENSE-STDLIB    *)
-(*                                                                        *)
-(**************************************************************************)
-
 (* Sets over ordered types *)
+module type ATOM = Mset.ATOM
 
-module type OrderedType =
-sig
-  type t
-  val compare: t -> t -> int
-end
-
-module type S =
-sig
-  type elt
-  type t
-  val empty: t
-  val is_empty: t -> bool
-  val mem: elt -> t -> bool
-  val add: elt -> t -> t
-  val singleton: elt -> t
-  val remove: elt -> t -> t
-  val union: t -> t -> t
-  val inter: t -> t -> t
-  val diff: t -> t -> t
-  val compare: t -> t -> int
-  val equal: t -> t -> bool
-  val subset: t -> t -> bool
-  val iter: (elt -> unit) -> t -> unit
-  val map: (elt -> elt) -> t -> t
-  val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
-  val for_all: (elt -> bool) -> t -> bool
-  val exists: (elt -> bool) -> t -> bool
-  val filter: (elt -> bool) -> t -> t
-  val partition: (elt -> bool) -> t -> t * t
-  val cardinal: t -> int
-  val elements: t -> elt list
-  val min_elt: t -> elt
-  val min_elt_opt: t -> elt option
-  val max_elt: t -> elt
-  val max_elt_opt: t -> elt option
-  val choose: t -> elt
-  val choose_opt: t -> elt option
-  val split: elt -> t -> t * bool * t
-  val find: elt -> t -> elt
-  val find_opt: elt -> t -> elt option
-  val find_first: (elt -> bool) -> t -> elt
-  val find_first_opt: (elt -> bool) -> t -> elt option
-  val find_last: (elt -> bool) -> t -> elt
-  val find_last_opt: (elt -> bool) -> t -> elt option
-  val of_list: elt list -> t
-end
-
-module Make(Ord: OrderedType) =
+module Make (Atom: ATOM) (* : Mset.S *) =
 struct
-  type elt = Ord.t
-  type t = Empty | Node of {l:t; v:elt; r:t; h:int}
+  type atom = Atom.t
+  type t = Empty | Node of {l:t; v:atom; r:t; h:int}
 
   (* Sets are represented by balanced binary trees (the heights of the
      children differ by at most 2 *)
@@ -93,26 +35,26 @@ struct
       match l with
         Empty -> invalid_arg "Set.bal"
       | Node{l=ll; v=lv; r=lr} ->
-          if height ll >= height lr then
-            create ll lv (create lr v r)
-          else begin
-            match lr with
-              Empty -> invalid_arg "Set.bal"
-            | Node{l=lrl; v=lrv; r=lrr}->
-                create (create ll lv lrl) lrv (create lrr v r)
-          end
+        if height ll >= height lr then
+          create ll lv (create lr v r)
+        else begin
+          match lr with
+            Empty -> invalid_arg "Set.bal"
+          | Node{l=lrl; v=lrv; r=lrr}->
+            create (create ll lv lrl) lrv (create lrr v r)
+        end
     end else if hr > hl + 2 then begin
       match r with
         Empty -> invalid_arg "Set.bal"
       | Node{l=rl; v=rv; r=rr} ->
-          if height rr >= height rl then
-            create (create l v rl) rv rr
-          else begin
-            match rl with
-              Empty -> invalid_arg "Set.bal"
-            | Node{l=rll; v=rlv; r=rlr} ->
-                create (create l v rll) rlv (create rlr rv rr)
-          end
+        if height rr >= height rl then
+          create (create l v rl) rv rr
+        else begin
+          match rl with
+            Empty -> invalid_arg "Set.bal"
+          | Node{l=rll; v=rlv; r=rlr} ->
+            create (create l v rll) rlv (create rlr rv rr)
+        end
     end else
       Node{l; v; r; h=(if hl >= hr then hl + 1 else hr + 1)}
 
@@ -121,14 +63,14 @@ struct
   let rec add x = function
       Empty -> Node{l=Empty; v=x; r=Empty; h=1}
     | Node{l; v; r} as t ->
-        let c = Ord.compare x v in
-        if c = 0 then t else
-        if c < 0 then
-          let ll = add x l in
-          if l == ll then t else bal ll v r
-        else
-          let rr = add x r in
-          if r == rr then t else bal l v rr
+      let c = Atom.compare x v in
+      if c = 0 then t else
+      if c < 0 then
+        let ll = add x l in
+        if l == ll then t else bal ll v r
+      else
+        let rr = add x r in
+        if r == rr then t else bal l v rr
 
   let singleton x = Node{l=Empty; v=x; r=Empty; h=1}
 
@@ -157,8 +99,8 @@ struct
       (Empty, _) -> add_min_element v r
     | (_, Empty) -> add_max_element v l
     | (Node{l=ll; v=lv; r=lr; h=lh}, Node{l=rl; v=rv; r=rr; h=rh}) ->
-        if lh > rh + 2 then bal ll lv (join lr v r) else
-        if rh > lh + 2 then bal (join l v rl) rv rr else
+      if lh > rh + 2 then bal ll lv (join lr v r) else
+      if rh > lh + 2 then bal (join l v rl) rv rr else
         create l v r
 
   (* Smallest and greatest element of a set *)
@@ -218,14 +160,14 @@ struct
 
   let rec split x = function
       Empty ->
-        (Empty, false, Empty)
+      (Empty, false, Empty)
     | Node{l; v; r} ->
-        let c = Ord.compare x v in
-        if c = 0 then (l, true, r)
-        else if c < 0 then
-          let (ll, pres, rl) = split x l in (ll, pres, join rl v r)
-        else
-          let (lr, pres, rr) = split x r in (join l v lr, pres, rr)
+      let c = Atom.compare x v in
+      if c = 0 then (l, true, r)
+      else if c < 0 then
+        let (ll, pres, rl) = split x l in (ll, pres, join rl v r)
+      else
+        let (lr, pres, rr) = split x r in (join l v lr, pres, rr)
 
   (* Implementation of the set operations *)
 
@@ -236,63 +178,65 @@ struct
   let rec mem x = function
       Empty -> false
     | Node{l; v; r} ->
-        let c = Ord.compare x v in
-        c = 0 || mem x (if c < 0 then l else r)
+      let c = Atom.compare x v in
+      c = 0 || mem x (if c < 0 then l else r)
 
   let rec remove x = function
       Empty -> Empty
     | (Node{l; v; r} as t) ->
-        let c = Ord.compare x v in
-        if c = 0 then merge l r
-        else
-          if c < 0 then
-            let ll = remove x l in
-            if l == ll then t
-            else bal ll v r
-          else
-            let rr = remove x r in
-            if r == rr then t
-            else bal l v rr
+      let c = Atom.compare x v in
+      if c = 0 then merge l r
+      else
+      if c < 0 then
+        let ll = remove x l in
+        if l == ll then t
+        else bal ll v r
+      else
+        let rr = remove x r in
+        if r == rr then t
+        else bal l v rr
 
   let rec union s1 s2 =
     match (s1, s2) with
-      (Empty, t2) -> t2
+    | (Empty, t2) -> t2
     | (t1, Empty) -> t1
     | (Node{l=l1; v=v1; r=r1; h=h1}, Node{l=l2; v=v2; r=r2; h=h2}) ->
-        if h1 >= h2 then
-          if h2 = 1 then add v2 s1 else begin
-            let (l2, _, r2) = split v1 s2 in
-            join (union l1 l2) v1 (union r1 r2)
-          end
-        else
-          if h1 = 1 then add v1 s2 else begin
-            let (l1, _, r1) = split v2 s1 in
-            join (union l1 l2) v2 (union r1 r2)
-          end
+      if h1 >= h2 then
+        if h2 = 1 then add v2 s1 
+        else begin
+          let (l2, _, r2) = split v1 s2 in
+          join (union l1 l2) v1 (union r1 r2)
+        end
+      else
+        if h1 = 1 then add v1 s2 
+        else begin
+          let (l1, _, r1) = split v2 s1 in
+          join (union l1 l2) v2 (union r1 r2)
+        end
 
   let rec inter s1 s2 =
     match (s1, s2) with
       (Empty, _) -> Empty
     | (_, Empty) -> Empty
     | (Node{l=l1; v=v1; r=r1}, t2) ->
-        match split v1 t2 with
-          (l2, false, r2) ->
-            concat (inter l1 l2) (inter r1 r2)
-        | (l2, true, r2) ->
-            join (inter l1 l2) v1 (inter r1 r2)
+      match split v1 t2 with
+        (l2, false, r2) ->
+        concat (inter l1 l2) (inter r1 r2)
+      | (l2, true, r2) ->
+        join (inter l1 l2) v1 (inter r1 r2)
 
   let rec diff s1 s2 =
     match (s1, s2) with
       (Empty, _) -> Empty
     | (t1, Empty) -> t1
     | (Node{l=l1; v=v1; r=r1}, t2) ->
-        match split v1 t2 with
-          (l2, false, r2) ->
-            join (diff l1 l2) v1 (diff r1 r2)
-        | (l2, true, r2) ->
-            concat (diff l1 l2) (diff r1 r2)
+      match split v1 t2 with
+        (l2, false, r2) ->
+        join (diff l1 l2) v1 (diff r1 r2)
+      | (l2, true, r2) ->
+        concat (diff l1 l2) (diff r1 r2)
 
-  type enumeration = End | More of elt * t * enumeration
+  type enumeration = End | More of atom * t * enumeration
 
   let rec cons_enum s e =
     match s with
@@ -300,15 +244,15 @@ struct
     | Node{l; v; r} -> cons_enum l (More(v, r, e))
 
   let rec compare_aux e1 e2 =
-      match (e1, e2) with
+    match (e1, e2) with
       (End, End) -> 0
     | (End, _)  -> -1
     | (_, End) -> 1
     | (More(v1, r1, e1), More(v2, r2, e2)) ->
-        let c = Ord.compare v1 v2 in
-        if c <> 0
-        then c
-        else compare_aux (cons_enum r1 e1) (cons_enum r2 e2)
+      let c = Atom.compare v1 v2 in
+      if c <> 0
+      then c
+      else compare_aux (cons_enum r1 e1) (cons_enum r2 e2)
 
   let compare s1 s2 =
     compare_aux (cons_enum s1 End) (cons_enum s2 End)
@@ -319,17 +263,17 @@ struct
   let rec subset s1 s2 =
     match (s1, s2) with
       Empty, _ ->
-        true
+      true
     | _, Empty ->
-        false
+      false
     | Node {l=l1; v=v1; r=r1}, (Node {l=l2; v=v2; r=r2} as t2) ->
-        let c = Ord.compare v1 v2 in
-        if c = 0 then
-          subset l1 l2 && subset r1 r2
-        else if c < 0 then
-          subset (Node {l=l1; v=v1; r=Empty; h=0}) l2 && subset r1 t2
-        else
-          subset (Node {l=Empty; v=v1; r=r1; h=0}) r2 && subset l1 t2
+      let c = Atom.compare v1 v2 in
+      if c = 0 then
+        subset l1 l2 && subset r1 r2
+      else if c < 0 then
+        subset (Node {l=l1; v=v1; r=Empty; h=0}) l2 && subset r1 t2
+      else
+        subset (Node {l=Empty; v=v1; r=r1; h=0}) r2 && subset l1 t2
 
   let rec iter f = function
       Empty -> ()
@@ -351,24 +295,24 @@ struct
   let rec filter p = function
       Empty -> Empty
     | (Node{l; v; r}) as t ->
-        (* call [p] in the expected left-to-right order *)
-        let l' = filter p l in
-        let pv = p v in
-        let r' = filter p r in
-        if pv then
-          if l==l' && r==r' then t else join l' v r'
-        else concat l' r'
+      (* call [p] in the expected left-to-right order *)
+      let l' = filter p l in
+      let pv = p v in
+      let r' = filter p r in
+      if pv then
+        if l==l' && r==r' then t else join l' v r'
+      else concat l' r'
 
   let rec partition p = function
       Empty -> (Empty, Empty)
     | Node{l; v; r} ->
-        (* call [p] in the expected left-to-right order *)
-        let (lt, lf) = partition p l in
-        let pv = p v in
-        let (rt, rf) = partition p r in
-        if pv
-        then (join lt v rt, concat lf rf)
-        else (concat lt rt, join lf v rf)
+      (* call [p] in the expected left-to-right order *)
+      let (lt, lf) = partition p l in
+      let pv = p v in
+      let (rt, rf) = partition p r in
+      if pv
+      then (join lt v rt, concat lf rf)
+      else (concat lt rt, join lf v rf)
 
   let rec cardinal = function
       Empty -> 0
@@ -388,107 +332,107 @@ struct
   let rec find x = function
       Empty -> raise Not_found
     | Node{l; v; r} ->
-        let c = Ord.compare x v in
-        if c = 0 then v
-        else find x (if c < 0 then l else r)
+      let c = Atom.compare x v in
+      if c = 0 then v
+      else find x (if c < 0 then l else r)
 
   let rec find_first_aux v0 f = function
       Empty ->
-        v0
+      v0
     | Node{l; v; r} ->
-        if f v then
-          find_first_aux v f l
-        else
-          find_first_aux v0 f r
+      if f v then
+        find_first_aux v f l
+      else
+        find_first_aux v0 f r
 
   let rec find_first f = function
       Empty ->
-        raise Not_found
+      raise Not_found
     | Node{l; v; r} ->
-        if f v then
-          find_first_aux v f l
-        else
-          find_first f r
+      if f v then
+        find_first_aux v f l
+      else
+        find_first f r
 
   let rec find_first_opt_aux v0 f = function
       Empty ->
-        Some v0
+      Some v0
     | Node{l; v; r} ->
-        if f v then
-          find_first_opt_aux v f l
-        else
-          find_first_opt_aux v0 f r
+      if f v then
+        find_first_opt_aux v f l
+      else
+        find_first_opt_aux v0 f r
 
   let rec find_first_opt f = function
       Empty ->
-        None
+      None
     | Node{l; v; r} ->
-        if f v then
-          find_first_opt_aux v f l
-        else
-          find_first_opt f r
+      if f v then
+        find_first_opt_aux v f l
+      else
+        find_first_opt f r
 
   let rec find_last_aux v0 f = function
       Empty ->
-        v0
+      v0
     | Node{l; v; r} ->
-        if f v then
-          find_last_aux v f r
-        else
-          find_last_aux v0 f l
+      if f v then
+        find_last_aux v f r
+      else
+        find_last_aux v0 f l
 
   let rec find_last f = function
       Empty ->
-        raise Not_found
+      raise Not_found
     | Node{l; v; r} ->
-        if f v then
-          find_last_aux v f r
-        else
-          find_last f l
+      if f v then
+        find_last_aux v f r
+      else
+        find_last f l
 
   let rec find_last_opt_aux v0 f = function
       Empty ->
-        Some v0
+      Some v0
     | Node{l; v; r} ->
-        if f v then
-          find_last_opt_aux v f r
-        else
-          find_last_opt_aux v0 f l
+      if f v then
+        find_last_opt_aux v f r
+      else
+        find_last_opt_aux v0 f l
 
   let rec find_last_opt f = function
       Empty ->
-        None
+      None
     | Node{l; v; r} ->
-        if f v then
-          find_last_opt_aux v f r
-        else
-          find_last_opt f l
+      if f v then
+        find_last_opt_aux v f r
+      else
+        find_last_opt f l
 
   let rec find_opt x = function
       Empty -> None
     | Node{l; v; r} ->
-        let c = Ord.compare x v in
-        if c = 0 then Some v
-        else find_opt x (if c < 0 then l else r)
+      let c = Atom.compare x v in
+      if c = 0 then Some v
+      else find_opt x (if c < 0 then l else r)
 
   let try_join l v r =
     (* [join l v r] can only be called when (elements of l < v <
        elements of r); use [try_join l v r] when this property may
        not hold, but you hope it does hold in the common case *)
-    if (l = Empty || Ord.compare (max_elt l) v < 0)
-    && (r = Empty || Ord.compare v (min_elt r) < 0)
+    if (l = Empty || Atom.compare (max_elt l) v < 0)
+    && (r = Empty || Atom.compare v (min_elt r) < 0)
     then join l v r
     else union l (add v r)
 
   let rec map f = function
     | Empty -> Empty
     | Node{l; v; r} as t ->
-       (* enforce left-to-right evaluation order *)
-       let l' = map f l in
-       let v' = f v in
-       let r' = map f r in
-       if l == l' && v == v' && r == r' then t
-       else try_join l' v' r'
+      (* enforce left-to-right evaluation order *)
+      let l' = map f l in
+      let v' = f v in
+      let r' = map f r in
+      if l == l' && v == v' && r == r' then t
+      else try_join l' v' r'
 
   let of_sorted_list l =
     let rec sub n l =
@@ -496,10 +440,10 @@ struct
       | 0, l -> Empty, l
       | 1, x0 :: l -> Node {l=Empty; v=x0; r=Empty; h=1}, l
       | 2, x0 :: x1 :: l ->
-          Node{l=Node{l=Empty; v=x0; r=Empty; h=1}; v=x1; r=Empty; h=2}, l
+        Node{l=Node{l=Empty; v=x0; r=Empty; h=1}; v=x1; r=Empty; h=2}, l
       | 3, x0 :: x1 :: x2 :: l ->
-          Node{l=Node{l=Empty; v=x0; r=Empty; h=1}; v=x1;
-               r=Node{l=Empty; v=x2; r=Empty; h=1}; h=2}, l
+        Node{l=Node{l=Empty; v=x0; r=Empty; h=1}; v=x1;
+             r=Node{l=Empty; v=x2; r=Empty; h=1}; h=2}, l
       | n, l ->
         let nl = n / 2 in
         let left, l = sub nl l in
@@ -519,5 +463,79 @@ struct
     | [x0; x1; x2] -> add x2 (add x1 (singleton x0))
     | [x0; x1; x2; x3] -> add x3 (add x2 (add x1 (singleton x0)))
     | [x0; x1; x2; x3; x4] -> add x4 (add x3 (add x2 (add x1 (singleton x0))))
-    | _ -> of_sorted_list (List.sort_uniq Ord.compare l)
+    | _ -> of_sorted_list (List.sort_uniq Atom.compare l)
+
+  (* Patching *)
+  type edit = 
+    | Add of atom
+    | Remove of atom
+  type patch = edit list
+
+  let op_diff xt yt =
+    let rec diff_avlt s1 s2 =
+      match (s1, s2) with
+      | (Empty, t2) -> fold (fun x y -> Add x :: y) t2 []
+      | (t1, Empty) -> fold (fun x y -> Remove x :: y) t1 []     
+      | (Node{l=l1; v=v1; r=r1; h=h1}, Node{l=l2; v=v2; r=r2; h=h2}) ->
+        if h1 >= h2 then
+          let (l2, p, r2) = split v1 s2 in
+          let l = diff_avlt l1 l2 in
+          let r = diff_avlt r1 r2 in
+          if p then
+            List.append l (Remove v1 :: r)
+          else
+            List.append l r
+        else
+          let (l1, p, r1) = split v2 s1 in
+          let l = diff_avlt l1 l2 in
+          let r = diff_avlt r1 r2 in
+          if p then
+            List.append l (Add v2 :: r)
+          else
+            List.append l r
+    in
+    diff_avlt xt yt
+
+  let op_transform p q =
+    let rec transform_aux xs ys =
+      match xs, ys with
+      | [], [] -> [], []
+      | [], _ -> [], ys
+      | _, [] -> xs, []   
+      | hx::rxs, hy::rys ->
+        let handle kx ky on_conflict =
+          let c = Atom.compare kx ky in
+          if c = 0 then on_conflict ()
+          else if c < 0 then 
+            let a, b = transform_aux rxs ys in
+            hx::a, b
+          else (* c > 0 *)
+            let a, b = transform_aux xs rys in
+            a, hy::b in
+        match hx, hy with
+        | Add x, Add y
+        | Remove x, Remove y ->
+          let on_conflict () = transform_aux rxs rys in
+          handle x y on_conflict
+        | Add x, Remove y 
+        | Remove x, Add y ->
+          (* Impossible condition *)
+          let on_conflict = fun () -> assert false in
+          handle x y on_conflict
+    in
+    transform_aux p q
+
+    (* Merging *)
+    let resolve = union
+
+    let rec apply s = function
+    | [] -> s
+    | Add x::r -> let s' = add x s in apply s' r
+    | Remove x::r -> let s' = remove x s in apply s' r
+
+  let merge3 ~ancestor l r =
+    let p = op_diff ancestor l in
+    let q = op_diff ancestor r in
+    let _,q' = op_transform p q in
+    apply l q'
 end

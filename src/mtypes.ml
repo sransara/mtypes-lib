@@ -8,6 +8,11 @@ end
 
 module type MERGEABLE = sig
   type t
-  val resolve: t -> t -> t
   val merge3: ancestor:t -> t -> t -> t
+end
+
+module type RESOLVEABLE = sig
+  type t
+  val resolve: t -> t -> t
+  include MERGEABLE with type t := t
 end

@@ -23,40 +23,15 @@
    under the License.
 *)
 
-
 exception Empty
-exception Impossible_pattern of string
 
-(* A totally ordered type and its comparison functions *)
-module type ORDERED = sig
-  type t
+module type ATOM = Mheap.ATOM
 
-  val eq : t -> t -> bool
-  val lt : t -> t -> bool
-  val leq : t -> t -> bool
-end
-
-module type HEAP = sig
-  module Elem : ORDERED
-
-  type heap
-
-  val empty : heap
-  val is_empty : heap -> bool
-
-  val insert : Elem.t -> heap -> heap
-  val merge : heap -> heap -> heap
-
-  val find_min : heap -> Elem.t  (* raises Empty if heap is empty *)
-  val delete_min : heap -> heap  (* raises Empty if heap is empty *)
-end
-
-module BinomialHeap (Element : ORDERED) : (HEAP with module Elem = Element) =
+module Make (Atom: ATOM) (* : Mheap.S *) =
 struct
-  module Elem = Element
-
-  type tree = Node of int * Elem.t * tree list
-  type heap = tree list
+  type atom = Atom.t
+  type tree = Node of int * atom * tree list
+  type t = tree list
 
   let empty = []
   let is_empty ts = ts = []
@@ -65,7 +40,7 @@ struct
   let root (Node (_, x, _)) = x
 
   let link (Node (r, x1, c1) as t1) (Node (_, x2, c2) as t2) =
-    if Elem.leq x1 x2 then Node (r + 1, x1, t2 :: c1)
+    if Atom.compare x1 x2 <= 0  then Node (r + 1, x1, t2 :: c1)
     else Node (r + 1, x2, t1 :: c2)
 
   let rec ins_tree t = function
@@ -89,12 +64,127 @@ struct
     | [t] -> t, []
     | t :: ts ->
       let t', ts' = remove_min_tree ts in
-      if Elem.leq (root t) (root t') then (t, ts)
+      if Atom.compare (root t) (root t') <= 0 then (t, ts)
       else (t', t :: ts')
 
   let find_min ts = root (fst (remove_min_tree ts))
 
   let delete_min ts =
-    let Node (_, _, ts1), ts2 = remove_min_tree ts in
-    merge (List.rev ts1) ts2
+    let Node (_, x, ts1), ts2 = remove_min_tree ts in
+    x, merge (List.rev ts1) ts2
+
+  let rec elements h =
+    if is_empty h then []
+    else
+      let min = find_min h in
+      let x, h' = delete_min h in
+      min::(elements h')
+
+  (* Patching *)
+  type edit =
+    | Insert of atom
+    | Delete of atom
+  type patch = edit list
+
+  let op_diff xt yt =
+    let heap_cmp hx hy =
+      match hx, hy with
+      | [], [] ->  0
+      | [], _ -> -1 (* hx < hy *) 
+      | _, [] ->  1 (* hx > hy *)
+      | _, _ ->
+        let mx = find_min hx in
+        let my = find_min hy in 
+        Atom.compare mx my in
+    let ahi = Aheap.insert heap_cmp in
+    let rec diff_heap edits ah1s ah2s =
+      if Aheap.is_empty ah1s then
+        let h2 = Aheap.fold_u merge empty ah2s in
+        let e = List.fold_right (fun x y -> Insert x :: y) (elements h2) [] in
+        e, Aheap.empty, Aheap.empty
+      else if Aheap.is_empty ah2s then
+        let h1 = Aheap.fold_u merge empty ah1s in
+        let e = List.fold_right (fun x y -> Delete x :: y) (elements h1) [] in
+        e, Aheap.empty, Aheap.empty
+      else
+        let h1, h1r = Aheap.delete_min heap_cmp ah1s in
+        let h2, h2r  = Aheap.delete_min heap_cmp ah2s in
+        match h1, h2 with
+        | [], [] -> diff_heap edits h1r h2r
+        | [], _ -> diff_heap edits h1r ah2s
+        | _, [] -> diff_heap edits ah1s h2r
+        | _, _ ->
+          let a1 = find_min h1 in
+          let a2 = find_min h2 in
+          let c = Atom.compare a1 a2 in
+          if c = 0 then (* a1 = a2 *)
+            let _, h11 = remove_min_tree h1 in 
+            let h1n = ahi h11 h1r in
+            let _, h21 = remove_min_tree h2 in 
+            let h2n = ahi h21 h2r in
+            diff_heap edits h1n h2n
+          else if c < 0 then (* a1 < a2 *)
+            let _, h11 = remove_min_tree h1 in 
+            let h1n = ahi h11 h1r in
+            diff_heap (Delete a1 :: edits) h1n h2r
+          else
+            let _, h21 = remove_min_tree h2 in 
+            let h2n = ahi h21 h2r in
+            diff_heap (Insert a2 :: edits) h1r h2n
+    in 
+    let edits, _, _ = diff_heap [] (ahi xt Aheap.empty) (ahi yt Aheap.empty) in
+    edits
+
+  let op_transform p q = 
+    let rec transform_aux xs ys =
+      match xs, ys with
+      | [], [] -> [], []
+      | [], _ -> [], ys
+      | _, [] -> xs, []   
+      | hx::rxs, hy::rys ->
+        let handle kx ky on_conflict =
+          let c = Atom.compare kx ky in
+          if c = 0 then on_conflict ()
+          else if c < 0 then 
+            let a, b = transform_aux rxs ys in
+            hx::a, b
+          else (* c > 0 *)
+            let a, b = transform_aux xs rys in
+            a, hy::b in
+        match hx, hy with
+        | Insert x, Insert y
+        | Delete x, Delete y ->
+          let on_conflict () = transform_aux rxs rys in
+          handle x y on_conflict
+        | Insert x, Delete y ->
+          let on_conflict () =
+            let a, b = transform_aux rxs rys in
+            (* Insert takes precedence: So reinsert the deleted element *)
+            hx::hx::a, b in
+          handle x y on_conflict
+        | Delete x, Insert y ->
+          let on_conflict () =
+            let a, b = transform_aux rxs rys in
+            (* Insert takes precedence: So reinsert the deleted element *)
+            a, hy::hy::b in
+          handle x y on_conflict
+    in
+    transform_aux p q
+
+  (* Merging *)
+  let resolve x y = merge x y
+
+  let rec apply s = function
+    | [] -> s
+    | Insert x::r -> let s' = insert x s in apply s' r
+    | Delete x::r -> 
+      let xx, s' = delete_min s in
+      let _ = assert (x = xx) in
+      apply s' r
+
+  let merge3 ~ancestor l r =
+    let p = op_diff ancestor l in
+    let q = op_diff ancestor r in
+    let _,q' = op_transform p q in
+    apply l q'
 end

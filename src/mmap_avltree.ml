@@ -6,67 +6,21 @@
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
-(*   special exception on linking described in the file LICENSE-STDLIB    *)
+(*   special exception on linking described in the file CORE-LICENSE.txt  *)
 (*                                                                        *)
 (**************************************************************************)
 
-module type OrderedType =
-sig
-  type t
-  val compare: t -> t -> int
-end
+module type KEY = Mmap.KEY
+module type ATOM = Mmap.ATOM
 
-module type S =
-sig
-  type key
-  type 'a t =
-  | Empty
-  | Node of {l:'a t; v:key; d:'a; r:'a t; h:int}
+module Make (Key: KEY) (Atom: ATOM) (* : Mmap.S *) = 
+struct
+  type key = Key.t
+  type atom = Atom.t
 
-  val empty: 'a t
-  val is_empty: 'a t -> bool
-  val mem:  key -> 'a t -> bool
-  val add: key -> 'a -> 'a t -> 'a t
-  val update: key -> ('a option -> 'a option) -> 'a t -> 'a t
-  val singleton: key -> 'a -> 'a t
-  val remove: key -> 'a t -> 'a t
-  val merge:
-    (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t
-  val union: (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
-  val compare: ('a -> 'a -> int) -> 'a t -> 'a t -> int
-  val equal: ('a -> 'a -> bool) -> 'a t -> 'a t -> bool
-  val iter: (key -> 'a -> unit) -> 'a t -> unit
-  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
-  val for_all: (key -> 'a -> bool) -> 'a t -> bool
-  val exists: (key -> 'a -> bool) -> 'a t -> bool
-  val filter: (key -> 'a -> bool) -> 'a t -> 'a t
-  val partition: (key -> 'a -> bool) -> 'a t -> 'a t * 'a t
-  val cardinal: 'a t -> int
-  val bindings: 'a t -> (key * 'a) list
-  val min_binding: 'a t -> (key * 'a)
-  val min_binding_opt: 'a t -> (key * 'a) option
-  val max_binding: 'a t -> (key * 'a)
-  val max_binding_opt: 'a t -> (key * 'a) option
-  val choose: 'a t -> (key * 'a)
-  val choose_opt: 'a t -> (key * 'a) option
-  val split: key -> 'a t -> 'a t * 'a option * 'a t
-  val find: key -> 'a t -> 'a
-  val find_opt: key -> 'a t -> 'a option
-  val find_first: (key -> bool) -> 'a t -> key * 'a
-  val find_first_opt: (key -> bool) -> 'a t -> (key * 'a) option
-  val find_last: (key -> bool) -> 'a t -> key * 'a
-  val find_last_opt: (key -> bool) -> 'a t -> (key * 'a) option
-  val map: ('a -> 'b) -> 'a t -> 'b t
-  val mapi: (key -> 'a -> 'b) -> 'a t -> 'b t
-end
-
-module Make(Ord: OrderedType) = struct
-
-  type key = Ord.t
-
-  type 'a t =
+  type t =
       Empty
-    | Node of {l:'a t; v:key; d:'a; r:'a t; h:int}
+    | Node of {l:t; v:key; d:atom; r:t; h:int}
 
   let height = function
       Empty -> 0
@@ -116,7 +70,7 @@ module Make(Ord: OrderedType) = struct
       Empty ->
       Node{l=Empty; v=x; d=data; r=Empty; h=1}
     | Node {l; v; d; r; h} as m ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then
         if d == data then m else Node{l; v=x; d=data; r; h}
       else if c < 0 then
@@ -130,7 +84,7 @@ module Make(Ord: OrderedType) = struct
       Empty ->
       raise Not_found
     | Node {l; v; d; r} ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then d
       else find x (if c < 0 then l else r)
 
@@ -198,8 +152,7 @@ module Make(Ord: OrderedType) = struct
         find_last_opt_aux v0 d0 f l
 
   let rec find_last_opt f = function
-      Empty ->
-      None
+    | Empty -> None
     | Node {l; v; d; r} ->
       if f v then
         find_last_opt_aux v d f r
@@ -207,58 +160,55 @@ module Make(Ord: OrderedType) = struct
         find_last_opt f l
 
   let rec find_opt x = function
-      Empty ->
-      None
+    | Empty -> None
     | Node {l; v; d; r} ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then Some d
       else find_opt x (if c < 0 then l else r)
 
   let rec mem x = function
-      Empty ->
-      false
+    | Empty -> false
     | Node {l; v; r} ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       c = 0 || mem x (if c < 0 then l else r)
 
   let rec min_binding = function
-      Empty -> raise Not_found
+    | Empty -> raise Not_found
     | Node {l=Empty; v; d} -> (v, d)
     | Node {l} -> min_binding l
 
   let rec min_binding_opt = function
-      Empty -> None
+    | Empty -> None
     | Node {l=Empty; v; d} -> Some (v, d)
     | Node {l}-> min_binding_opt l
 
   let rec max_binding = function
-      Empty -> raise Not_found
+    | Empty -> raise Not_found
     | Node {v; d; r=Empty} -> (v, d)
     | Node {r} -> max_binding r
 
   let rec max_binding_opt = function
-      Empty -> None
+    | Empty -> None
     | Node {v; d; r=Empty} -> Some (v, d)
     | Node {r} -> max_binding_opt r
 
   let rec remove_min_binding = function
-      Empty -> invalid_arg "Map.remove_min_elt"
+    | Empty -> invalid_arg "Map.remove_min_elt"
     | Node {l=Empty; r} -> r
     | Node {l; v; d; r} -> bal (remove_min_binding l) v d r
 
   let merge t1 t2 =
     match (t1, t2) with
-      (Empty, t) -> t
+    | (Empty, t) -> t
     | (t, Empty) -> t
     | (_, _) ->
       let (x, d) = min_binding t2 in
       bal t1 x d (remove_min_binding t2)
 
   let rec remove x = function
-      Empty ->
-      Empty
+    | Empty -> Empty
     | (Node {l; v; d; r} as m) ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then merge l r
       else if c < 0 then
         let ll = remove x l in if l == ll then m else bal ll v d r
@@ -266,13 +216,13 @@ module Make(Ord: OrderedType) = struct
         let rr = remove x r in if r == rr then m else bal l v d rr
 
   let rec update x f = function
-      Empty ->
+    | Empty ->
       begin match f None with
         | None -> Empty
         | Some data -> Node{l=Empty; v=x; d=data; r=Empty; h=1}
       end
     | Node {l; v; d; r; h} as m ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then begin
         match f (Some d) with
         | None -> merge l r
@@ -286,13 +236,12 @@ module Make(Ord: OrderedType) = struct
         if r == rr then m else bal l v d rr
 
   let rec iter f = function
-      Empty -> ()
+    | Empty -> ()
     | Node {l; v; d; r} ->
       iter f l; f v d; iter f r
 
   let rec map f = function
-      Empty ->
-      Empty
+    | Empty -> Empty
     | Node {l; v; d; r; h} ->
       let l' = map f l in
       let d' = f d in
@@ -300,8 +249,7 @@ module Make(Ord: OrderedType) = struct
       Node{l=l'; v; d=d'; r=r'; h}
 
   let rec mapi f = function
-      Empty ->
-      Empty
+    | Empty -> Empty
     | Node {l; v; d; r; h} ->
       let l' = mapi f l in
       let d' = f v d in
@@ -310,16 +258,16 @@ module Make(Ord: OrderedType) = struct
 
   let rec fold f m accu =
     match m with
-      Empty -> accu
+    | Empty -> accu
     | Node {l; v; d; r} ->
       fold f r (f v d (fold f l accu))
 
   let rec for_all p = function
-      Empty -> true
+    | Empty -> true
     | Node {l; v; d; r} -> p v d && for_all p l && for_all p r
 
   let rec exists p = function
-      Empty -> false
+    | Empty -> false
     | Node {l; v; d; r} -> p v d || exists p l || exists p r
 
   (* Beware: those two functions assume that the added k is *strictly*
@@ -345,7 +293,7 @@ module Make(Ord: OrderedType) = struct
 
   let rec join l v d r =
     match (l, r) with
-      (Empty, _) -> add_min_binding v d r
+    | (Empty, _) -> add_min_binding v d r
     | (_, Empty) -> add_max_binding v d l
     | (Node{l=ll; v=lv; d=ld; r=lr; h=lh}, Node{l=rl; v=rv; d=rd; r=rr; h=rh}) ->
       if lh > rh + 2 then bal ll lv ld (join lr v d r) else
@@ -358,7 +306,7 @@ module Make(Ord: OrderedType) = struct
 
   let concat t1 t2 =
     match (t1, t2) with
-      (Empty, t) -> t
+    | (Empty, t) -> t
     | (t, Empty) -> t
     | (_, _) ->
       let (x, d) = min_binding t2 in
@@ -370,10 +318,9 @@ module Make(Ord: OrderedType) = struct
     | None -> concat t1 t2
 
   let rec split x = function
-      Empty ->
-      (Empty, None, Empty)
+    | Empty -> (Empty, None, Empty)
     | Node {l; v; d; r} ->
-      let c = Ord.compare x v in
+      let c = Key.compare x v in
       if c = 0 then (l, Some d, r)
       else if c < 0 then
         let (ll, pres, rl) = split x l in (ll, pres, join rl v d r)
@@ -382,15 +329,14 @@ module Make(Ord: OrderedType) = struct
 
   let rec merge f s1 s2 =
     match (s1, s2) with
-      (Empty, Empty) -> Empty
+    | (Empty, Empty) -> Empty
     | (Node {l=l1; v=v1; d=d1; r=r1; h=h1}, _) when h1 >= height s2 ->
       let (l2, d2, r2) = split v1 s2 in
       concat_or_join (merge f l1 l2) v1 (f v1 (Some d1) d2) (merge f r1 r2)
     | (_, Node {l=l2; v=v2; d=d2; r=r2}) ->
       let (l1, d1, r1) = split v2 s1 in
       concat_or_join (merge f l1 l2) v2 (f v2 d1 (Some d2)) (merge f r1 r2)
-    | _ ->
-      assert false
+    | _ -> assert false
 
   let rec union f s1 s2 =
     match (s1, s2) with
@@ -410,7 +356,7 @@ module Make(Ord: OrderedType) = struct
         | Some d1 -> concat_or_join l v2 (f v2 d1 d2) r
 
   let rec filter p = function
-      Empty -> Empty
+    | Empty -> Empty
     | Node {l; v; d; r} as m ->
       (* call [p] in the expected left-to-right order *)
       let l' = filter p l in
@@ -420,7 +366,7 @@ module Make(Ord: OrderedType) = struct
       else concat l' r'
 
   let rec partition p = function
-      Empty -> (Empty, Empty)
+    | Empty -> (Empty, Empty)
     | Node {l; v; d; r} ->
       (* call [p] in the expected left-to-right order *)
       let (lt, lf) = partition p l in
@@ -430,44 +376,44 @@ module Make(Ord: OrderedType) = struct
       then (join lt v d rt, concat lf rf)
       else (concat lt rt, join lf v d rf)
 
-  type 'a enumeration = End | More of key * 'a * 'a t * 'a enumeration
+  type enumeration = End | More of key * atom * t * enumeration
 
   let rec cons_enum m e =
     match m with
-      Empty -> e
+    | Empty -> e
     | Node {l; v; d; r} -> cons_enum l (More(v, d, r, e))
 
   let compare cmp m1 m2 =
     let rec compare_aux e1 e2 =
       match (e1, e2) with
-        (End, End) -> 0
+      | (End, End) -> 0
       | (End, _)  -> -1
       | (_, End) -> 1
       | (More(v1, d1, r1, e1), More(v2, d2, r2, e2)) ->
-        let c = Ord.compare v1 v2 in
+        let c = Key.compare v1 v2 in
         if c <> 0 then c else
           let c = cmp d1 d2 in
           if c <> 0 then c else
             compare_aux (cons_enum r1 e1) (cons_enum r2 e2)
     in compare_aux (cons_enum m1 End) (cons_enum m2 End)
 
-  let equal cmp m1 m2 =
+  let equal m1 m2 =
     let rec equal_aux e1 e2 =
       match (e1, e2) with
-        (End, End) -> true
+      | (End, End) -> true
       | (End, _)  -> false
       | (_, End) -> false
       | (More(v1, d1, r1, e1), More(v2, d2, r2, e2)) ->
-        Ord.compare v1 v2 = 0 && cmp d1 d2 &&
+        Key.compare v1 v2 = 0 && Atom.equal d1 d2 &&
         equal_aux (cons_enum r1 e1) (cons_enum r2 e2)
     in equal_aux (cons_enum m1 End) (cons_enum m2 End)
 
   let rec cardinal = function
-      Empty -> 0
+    | Empty -> 0
     | Node {l; r} -> cardinal l + 1 + cardinal r
 
   let rec bindings_aux accu = function
-      Empty -> accu
+    | Empty -> accu
     | Node {l; v; d; r} -> bindings_aux ((v, d) :: bindings_aux accu r) l
 
   let bindings s =
@@ -476,4 +422,122 @@ module Make(Ord: OrderedType) = struct
   let choose = min_binding
 
   let choose_opt = min_binding_opt
+
+  (* Patching *)
+  type edit = 
+    | Add of key * atom
+    | Remove of key
+    | Replace of key * atom * atom
+  type patch = edit list
+
+  let op_diff xt yt = 
+    let rec diff_avltree s1 s2 =
+      match (s1, s2) with
+      | (Empty, s) -> fold (fun k x y -> Add (k,x) :: y) s []
+      | (s, Empty) -> fold (fun k x y -> Remove k :: y) s []
+      | (Node {l=l1; v=v1; d=d1; r=r1; h=h1}, Node {l=l2; v=v2; d=d2; r=r2; h=h2}) ->
+        if h1 >= h2 then
+          let (l2, d2, r2) = split v1 s2 in
+          let l = diff_avltree l1 l2 in 
+          let r = diff_avltree r1 r2 in
+          match d2 with
+          | None -> List.append l (Remove v1 :: r)
+          | Some d2 ->
+            if Atom.equal d1 d2 then
+              List.append l r
+            else
+              List.append l (Replace (v1, d1, d2) :: r)
+        else
+          let (l1, d1, r1) = split v2 s1 in
+          let l = diff_avltree l1 l2 in 
+          let r = diff_avltree r1 r2 in
+          match d1 with
+          | None -> List.append l (Add (v2, d2) :: r)
+          | Some d1 ->
+            if Atom.equal d1 d2 then
+              List.append l r
+            else
+              List.append l (Replace (v1, d1, d2) :: r)
+    in
+    diff_avltree xt yt
+
+  let op_transform p q = 
+    let rec transform_aux xs ys =
+      match xs, ys with
+      | [], [] -> [], []
+      | [], _ -> [], ys
+      | _, [] -> xs, []   
+      | hx::rxs, hy::rys ->
+        let handle kx ky on_conflict =
+          let c = Key.compare kx ky in
+          if c = 0 then on_conflict ()
+          else if c < 0 then 
+            let a, b = transform_aux rxs ys in
+            hx::a, b
+          else (* c > 0 *)
+            let a, b = transform_aux xs rys in
+            a, hy::b in
+        match hx, hy with
+        | Add (kx, x), Add (ky, y) ->
+          let on_conflict () =
+            if Atom.equal x y then
+              transform_aux rxs rys
+            else
+              let m = Atom.resolve x y in
+              let a, b = transform_aux rxs ys in
+              Add (kx, m)::a, Add(ky, m)::b in
+          handle kx ky on_conflict
+        | Add (kx, x), Replace (ky, ay, y) ->
+          let on_conflict = fun () -> assert false in
+          handle kx ky on_conflict
+        | Add (kx, x), Remove ky ->
+          let on_conflict = fun () -> assert false in
+          handle kx ky on_conflict
+        | Replace (kx, ax, x), Add (ky, y) ->
+          let on_conflict = fun () -> assert false in
+          handle kx ky on_conflict
+        | Replace (kx, ax, x), Replace (ky, ay, y) ->
+          let on_conflict () =
+            if Atom.equal x y then
+              transform_aux rxs rys
+            else
+              let m = Atom.merge3 ~ancestor:ax x y in
+              let a, b = transform_aux rxs ys in
+              Replace (kx, ax, m)::a, Replace (ky, ay, m)::b in
+          handle kx ky on_conflict
+        | Replace (kx, ax, x), Remove ky ->
+          let on_conflict () =
+            let a, b = transform_aux rxs rys in
+            a, Add (kx,x)::b in
+          handle kx ky on_conflict
+        | Remove kx, Add (ky, y) ->
+          let on_conflict = fun () -> assert false in
+          handle kx ky on_conflict
+        | Remove kx, Replace (ky, ay, y) ->
+          let on_conflict () =
+            let a, b = transform_aux rxs rys in
+            Add (ky, y)::a, b in
+          handle kx ky on_conflict
+        | Remove kx, Remove ky ->
+          let on_conflict () = transform_aux rxs rys in
+          handle kx ky on_conflict
+    in
+    transform_aux p q
+
+  (* Merging *)
+  let resolve = 
+    let aux k x y = Some (Atom.resolve x y) in
+    union aux
+
+  let rec apply s = function
+    | [] -> s
+    | Add (k, x)::r -> let s' = add k x s in apply s' r
+    | Remove (k)::r -> let s' = remove k s in apply s' r
+    | Replace (k, a, x)::r -> let s' = add k x s in apply s' r
+
+  let merge3 ~ancestor l r =
+    let p = op_diff ancestor l in
+    let q = op_diff ancestor r in
+    let _,q' = op_transform p q in
+    apply l q'
 end
