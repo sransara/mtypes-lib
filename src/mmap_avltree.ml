@@ -18,9 +18,10 @@ struct
   type key = Key.t
   type atom = Atom.t
 
-  type t =
+  type node = {l:t; v:key; d:atom; r:t; h:int}
+  and t =
       Empty
-    | Node of {l:t; v:key; d:atom; r:t; h:int}
+    | Node of node 
 
   let height = function
       Empty -> 0
@@ -62,7 +63,7 @@ struct
     end else
       Node{l; v=x; d; r; h=(if hl >= hr then hl + 1 else hr + 1)}
 
-  let empty = Empty
+  let empty () = Empty
 
   let is_empty = function Empty -> true | _ -> false
 
@@ -431,10 +432,11 @@ struct
   type patch = edit list
 
   let op_diff xt yt = 
+     (* TODO: Use reverse appends for faster list manipulations *)
     let rec diff_avltree s1 s2 =
       match (s1, s2) with
-      | (Empty, s) -> fold (fun k x y -> Add (k,x) :: y) s []
-      | (s, Empty) -> fold (fun k x y -> Remove k :: y) s []
+      | (Empty, s) -> fold (fun k x y ->  y @ [Add (k,x)]) s []
+      | (s, Empty) -> fold (fun k x y -> y @ [Remove k]) s []
       | (Node {l=l1; v=v1; d=d1; r=r1; h=h1}, Node {l=l2; v=v2; d=d2; r=r2; h=h2}) ->
         if h1 >= h2 then
           let (l2, d2, r2) = split v1 s2 in

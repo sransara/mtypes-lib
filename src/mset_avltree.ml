@@ -4,7 +4,8 @@ module type ATOM = Mset.ATOM
 module Make (Atom: ATOM) (* : Mset.S *) =
 struct
   type atom = Atom.t
-  type t = Empty | Node of {l:t; v:atom; r:t; h:int}
+  type node = {l:t; v:atom; r:t; h:int}
+  and t = Empty | Node of node
 
   (* Sets are represented by balanced binary trees (the heights of the
      children differ by at most 2 *)
@@ -472,27 +473,28 @@ struct
   type patch = edit list
 
   let op_diff xt yt =
+    (* TODO: Use reverse appends for faster list manipulations *)
     let rec diff_avlt s1 s2 =
       match (s1, s2) with
-      | (Empty, t2) -> fold (fun x y -> Add x :: y) t2 []
-      | (t1, Empty) -> fold (fun x y -> Remove x :: y) t1 []     
+      | (Empty, t2) -> fold (fun x y -> y @ [Add x]) t2 []
+      | (t1, Empty) -> fold (fun x y -> y @ [Remove x]) t1 []     
       | (Node{l=l1; v=v1; r=r1; h=h1}, Node{l=l2; v=v2; r=r2; h=h2}) ->
         if h1 >= h2 then
           let (l2, p, r2) = split v1 s2 in
           let l = diff_avlt l1 l2 in
           let r = diff_avlt r1 r2 in
           if p then
-            List.append l (Remove v1 :: r)
-          else
             List.append l r
+          else
+            List.append l (Remove v1 :: r)
         else
           let (l1, p, r1) = split v2 s1 in
           let l = diff_avlt l1 l2 in
           let r = diff_avlt r1 r2 in
           if p then
-            List.append l (Add v2 :: r)
-          else
             List.append l r
+          else
+            List.append l (Add v2 :: r)
     in
     diff_avlt xt yt
 

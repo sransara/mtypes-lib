@@ -25,7 +25,7 @@ module type S = sig
   type t
   type atom
   type key
-  val empty : t
+  val empty : unit -> t
   val is_empty : t -> bool
   val add : key -> atom -> t -> t
   val find : key -> t -> atom
@@ -41,14 +41,18 @@ module type S = sig
 end
 
 (* TODO: Functorise the Mergeable map module *)
-module Map = Mmap_avltree 
+module Map = Mmap_avltree
 module type KEY = Mmap.KEY
 module type ATOM = Mmap.ATOM
 
-module Make (Key: KEY) (Atom: ATOM) : S 
+module Make (Key: KEY) (Atom: ATOM)  : S 
   with type atom = Atom.t 
    and type key = Key.t list = 
 struct
+  (* TODO: To fix Error: Cannot safely evaluate the definition
+        of the recursively-defined module Trie 
+        Map.empty signature was changed to unit -> t 
+        Is there a way to use the default? *)
   module rec Trie : S 
     with type atom = Atom.t 
      and type key = Key.t list = 
@@ -60,7 +64,7 @@ struct
 
     type t = Node of atom option * M.t
 
-    let empty = Node (None, M.empty)
+    let empty () = Node (None, M.empty ())
 
     let is_empty = function
       | Node (None, m1) -> M.is_empty m1
@@ -92,7 +96,7 @@ struct
       let rec ins = function
         | [], Node (_,m) -> Node (Some v,m)
         | x::r, Node (v,m) ->
-          let t' = try M.find x m with Not_found -> empty in
+          let t' = try M.find x m with Not_found -> empty () in
           let t'' = ins (r,t') in
           Node (v, M.add x t'' m)
       in

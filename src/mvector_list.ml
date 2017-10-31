@@ -4,93 +4,49 @@
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
 
-module type ATOM = sig
-  type t
-  include Mtypes.RESOLVEABLE with type t := t
-end
+module type ATOM = Mvector.ATOM
 
-module type Base = sig
-  type t
-  type atom
-
-  val length : t -> int
-  val set : t -> int -> atom -> t
-  val get : t -> int -> atom
-  val insert : t -> int -> atom -> t
-  val delete : t -> int -> t
-end
-
-module type S = sig
-  include Base
-
-  (* Merging *)
-  type edit =
-    | Ins of int * atom
-    | Del of int * atom
-    | Rep of int * atom * atom
-
-  include Mtypes.PATCHABLE with type t := t and type edit := edit
-
-  (* Merging *)
-  include Mtypes.MERGEABLE with type t := t
-end
-
-module Make (Atom: ATOM) (V: Base with type atom = Atom.t) : S
-  with type atom = Atom.t
-   and type t = V.t = 
+module Make (Atom: ATOM) (* : Mvector.S 
+  with type atom = Atom.t *) = 
 struct
+  type atom = Atom.t
+  type t = atom list
 
-  include V
+  let length (x:t) = List.length x 
 
+  let split_at l i =
+    if List.length l > i then
+      let rec aux xs i acc =
+        if i >= 0 then aux (List.tl xs) (i - 1) ((List.hd xs) :: acc)
+        else acc, xs
+      in
+      aux l i []
+    else raise (Invalid_argument "out of bound index")
+
+  let insert l i a =
+    let rxs, ys = split_at l i in
+    List.rev_append rxs (a :: ys)
+
+  let get l i =
+    List.nth l i
+
+  let set l i a =
+    let rxs, ys = split_at l i in
+    let sxs = a :: (List.tl rxs) in
+    List.rev_append sxs ys
+
+  let delete l i =
+    let rxs, ys = split_at l i in
+    List.rev_append rxs ys
+
+
+  (* Patching *)
   type edit =
     | Ins of int * atom
     | Del of int * atom
     | Rep of int * atom * atom
 
   type patch = edit list
-
-  let op_diff xs ys =
-    let cache = Array.init (V.length xs+1)
-        (fun _ -> Array.make (V.length ys+1) None)
-    in
-    let rec loop i j =
-      let cache_i = Array.unsafe_get cache i in
-      let min3 x y z =
-        let m' (a,al) (b,bl) = if a < b then (a,al) else (b,bl) in
-        m' (m' x y) z
-      in
-      match Array.unsafe_get cache_i j with
-      | Some v -> v
-      | None ->
-        let res =
-          begin match i,j with
-            | 0,0 -> (0, [])
-            | 0, j ->
-              let d,e = loop 0 (j-1) in
-              (d+1, (Ins (i,V.get ys (j-1))::e))
-            | i, 0 ->
-              let d,e = loop (i-1) 0 in
-              (d+1, (Del(i-1,V.get xs (i-1))::e))
-            | _ ->
-              let xsim1 = V.get xs (i-1) in
-              let ysim1 = V.get ys (j-1) in
-              let d,e = loop (i-1) j in
-              let r1 = (d+1, Del (i-1,xsim1)::e) in
-              let d,e = loop i (j-1) in
-              let r2 = (d+1, Ins (i,ysim1)::e) in
-              let d,e = loop (i-1) (j-1) in
-              let r3 =
-                if xsim1 = ysim1 then d,e
-                else (d+1, (Rep (i-1, xsim1, ysim1)::e))
-              in
-              min3 r1 r2 r3
-          end
-        in
-        Array.unsafe_set cache_i j (Some res);
-        res
-    in
-    let d,e = loop (V.length xs) (V.length ys) in
-    List.rev e
 
   let index = function
     | Ins (i,_) -> i
@@ -111,6 +67,50 @@ struct
     | Del _ -> -1
     | Rep _ -> 0
 
+  let op_diff xs ys =
+    let cache = Array.init (length xs+1)
+        (fun _ -> Array.make (length ys+1) None)
+    in
+    let rec loop i j =
+      let cache_i = Array.unsafe_get cache i in
+      let min3 x y z =
+        let m' (a,al) (b,bl) = if a < b then (a,al) else (b,bl) in
+        m' (m' x y) z
+      in
+      match Array.unsafe_get cache_i j with
+      | Some v -> v
+      | None ->
+        let res =
+          begin match i,j with
+            | 0,0 -> (0, [])
+            | 0, j ->
+              let d,e = loop 0 (j-1) in
+              (d+1, (Ins (i,get ys (j-1))::e))
+            | i, 0 ->
+              let d,e = loop (i-1) 0 in
+              (d+1, (Del(i-1,get xs (i-1))::e))
+            | _ ->
+              let xsim1 = get xs (i-1) in
+              let ysim1 = get ys (j-1) in
+              let d,e = loop (i-1) j in
+              let r1 = (d+1, Del (i-1,xsim1)::e) in
+              let d,e = loop i (j-1) in
+              let r2 = (d+1, Ins (i,ysim1)::e) in
+              let d,e = loop (i-1) (j-1) in
+              let r3 =
+                if xsim1 = ysim1 then d,e
+                else (d+1, (Rep (i-1, xsim1, ysim1)::e))
+              in
+              min3 r1 r2 r3
+          end
+        in
+        Array.unsafe_set cache_i j (Some res);
+        res
+    in
+    let d,e = loop (length xs) (length ys) in
+    List.rev e
+
+  (* Merging *)
   let op_transform p q =
     let cons2 (x,y) (xs,ys) = (x::xs, y::ys) in
     let rec go xs a ys b =
@@ -154,13 +154,13 @@ struct
   let rec apply off s = function
     | [] -> s
     | Ins(pos,c)::tl ->
-      let s' = V.insert s (pos+off) c in
+      let s' = insert s (pos+off) c in
       apply (off + 1) s' tl
     | Rep(pos,x,x')::tl ->
-      let s' = V.set s (pos + off) x' in
+      let s' = set s (pos + off) x' in
       apply off s' tl
     | Del(pos,x)::tl ->
-      let s' = V.delete s (pos + off) in
+      let s' = delete s (pos + off) in
       apply (off - 1) s' tl
 
   let apply s =
@@ -173,7 +173,6 @@ struct
     let q = op_diff ancestor r in
     let _,q' = op_transform p q in
     apply l q'
-
 end
 
 (*---------------------------------------------------------------------------

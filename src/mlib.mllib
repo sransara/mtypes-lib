@@ -1,6 +1,11 @@
-Mtypes
+Mheap_binomial
+Mheap_leftist
 Mheap
+Mheap_pairing
+Mmap_avltree
 Mmap
+Mset_avltree
 Mset
+Mtypes
+Mvector_list
 Mvector
-Aheap

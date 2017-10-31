@@ -15,7 +15,7 @@ module type Base = sig
   type key
   type atom
 
-  val empty : t
+  val empty : unit -> t
   val is_empty : t -> bool
   val mem : key -> t -> bool
   val add : key -> atom -> t -> t

@@ -1,3 +1,4 @@
+(* Set AVL Tree *)
 let _ =
   let module IntAtom = struct
     type t = int
@@ -13,6 +14,7 @@ let _ =
   let _ = M.merge3 ~ancestor:original v1 v2 in
   ()
 
+(* Map AVL tree *)
 let _ =
   let module IntAtom = struct
     type t = int
@@ -28,9 +30,31 @@ let _ =
   end in
 
   let module M = Mmap_avltree.Make(StringKey)(IntAtom) in
-  let original = M.empty |> M.add "C" 10 |> M.add "A" 5 |> M.add "D" 20 in
+  let original = M.empty () |> M.add "C" 10 |> M.add "A" 5 |> M.add "D" 20 in
   let v1 = original |> M.add "A" 40 |> M.add "D" 60 |> M.remove "C" in
   let v2 = original |> M.add "Z" 4 |> M.add "D" 70 in
+  let _ = M.merge3 ~ancestor:original v1 v2 in
+  ()
+
+(* Map Trie *)
+let _ =
+  let module IntAtom = struct
+    type t = int
+    let resolve x y = x + y
+    let merge3 ~ancestor x y = ancestor + (x - ancestor) + (y - ancestor)
+    let to_string = string_of_int
+    let equal x y = Pervasives.compare x y = 0 
+  end in
+
+  let module StringKey = struct
+    include String
+    let to_string s = s 
+  end in
+
+  let module M = Mmap_trie.Make(StringKey)(IntAtom) in
+  let original = M.empty () |> M.add ["C"] 10 |> M.add ["C"; "A"] 5 |> M.add ["D"] 20 in
+  let v1 = original |> M.add ["C"; "A"] 40 |> M.add ["C"; "A"; "R"] 60 |> M.remove ["C"] in
+  let v2 = original |> M.add ["Z"] 4 |> M.add ["D"] 70 in
   let _ = M.merge3 ~ancestor:original v1 v2 in
   ()
 
