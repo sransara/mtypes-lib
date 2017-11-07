@@ -63,7 +63,7 @@ struct
     end else
       Node{l; v=x; d; r; h=(if hl >= hr then hl + 1 else hr + 1)}
 
-  let empty () = Empty
+  let empty = Empty
 
   let is_empty = function Empty -> true | _ -> false
 
@@ -504,7 +504,7 @@ struct
               transform_aux rxs rys
             else
               let m = Atom.merge3 ~ancestor:ax x y in
-              let a, b = transform_aux rxs ys in
+              let a, b = transform_aux rxs rys in
               Replace (kx, ax, m)::a, Replace (ky, ay, m)::b in
           handle kx ky on_conflict
         | Replace (kx, ax, x), Remove ky ->

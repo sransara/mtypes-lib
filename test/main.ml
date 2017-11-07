@@ -30,7 +30,7 @@ let _ =
   end in
 
   let module M = Mmap_avltree.Make(StringKey)(IntAtom) in
-  let original = M.empty () |> M.add "C" 10 |> M.add "A" 5 |> M.add "D" 20 in
+  let original = M.empty |> M.add "C" 10 |> M.add "A" 5 |> M.add "D" 20 in
   let v1 = original |> M.add "A" 40 |> M.add "D" 60 |> M.remove "C" in
   let v2 = original |> M.add "Z" 4 |> M.add "D" 70 in
   let _ = M.merge3 ~ancestor:original v1 v2 in
@@ -51,11 +51,14 @@ let _ =
     let to_string s = s 
   end in
 
+  let klts kl = List.fold_right (fun a b -> a ^ b) kl "" in  
+
   let module M = Mmap_trie.Make(StringKey)(IntAtom) in
-  let original = M.empty () |> M.add ["C"] 10 |> M.add ["C"; "A"] 5 |> M.add ["D"] 20 in
+  let original = M.empty |> M.add ["C"] 10 |> M.add ["C"; "A"] 5 |> M.add ["D"] 20 in
   let v1 = original |> M.add ["C"; "A"] 40 |> M.add ["C"; "A"; "R"] 60 |> M.remove ["C"] in
   let v2 = original |> M.add ["Z"] 4 |> M.add ["D"] 70 in
-  let _ = M.merge3 ~ancestor:original v1 v2 in
+  let m = M.merge3 ~ancestor:original v1 v2 in
+  let _ = M.iter (fun k a -> Printf.printf "%s : %s\n" (klts k) (IntAtom.to_string a) ) m in
   ()
 
 let _ =

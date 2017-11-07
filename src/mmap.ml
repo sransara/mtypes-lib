@@ -15,7 +15,7 @@ module type Base = sig
   type key
   type atom
 
-  val empty : unit -> t
+  val empty : t
   val is_empty : t -> bool
   val mem : key -> t -> bool
   val add : key -> atom -> t -> t
@@ -23,7 +23,7 @@ module type Base = sig
   val compare : (atom -> atom -> int) -> t -> t -> int
   val equal : t -> t -> bool
   val iter : (key -> atom -> unit) -> t -> unit
-  val fold : (key -> atom -> atom -> atom) -> t -> atom -> atom
+  val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
   val find : key -> t -> atom
   val map : (atom -> atom) -> t -> t
   val mapi : (key -> atom -> atom) -> t -> t

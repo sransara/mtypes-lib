@@ -1,10 +1,13 @@
-module RString = struct
-  module A = struct
-    type t = char
-    let resolve x y = 'f'
-    let merge3 ~ancestor x y = 'f'
-  end
+module A = struct
+  type t = char
+  let resolve x y = 'f'
+  let merge3 ~ancestor x y = 
+    let _ = Printf.printf "%c %c %c\n" ancestor x y in
+    'f'
+  let equal = Pervasives.(=)
+end
 
+module RString = struct
   module V = struct
     type atom = char
     type t = string
@@ -55,21 +58,56 @@ module RString = struct
     loop l (M.length x) s x
 end
 
-module V = Mvector_list.Make(RString)
-
 module IntKey = struct
   type t = int 
   let compare = compare
   let to_string = string_of_int
 end
 
-module M = Mmap_trie.Make(IntKey)(RString)
+module M = struct
+  module B = Mmap_avltree.Make(IntKey)(A)
+  include B
+  let ets s = function
+  | Add (key, atom) -> s ^ "Add " ^ IntKey.to_string key ^ "," ^ String.make 1 atom^ "\n" 
+  | Remove (key) -> s ^ "Remove" ^ IntKey.to_string key^ "\n" 
+  | Replace (key, ax, y) -> s ^ "Replace " ^ IntKey.to_string key ^ "," ^ String.make 1 ax ^ "," ^ String.make 1 y ^ "\n" 
 
-let keylist_to_string x = List.fold_left (fun x y -> x ^ IntKey.to_string y) "" x
+  let pts (p:patch) = List.fold_left ets "" p
+
+  let merge3 ~ancestor l r =
+    let p = op_diff ancestor l in
+    let _ = Printf.printf "p: %s" (pts p) in
+    let q = op_diff ancestor r in
+    let _ = Printf.printf "q: %s" (pts q) in
+    let _,q' = op_transform p q in
+    let _ = Printf.printf "q': %s" (pts q') in
+    apply l q'
+end
 
 let _ =
-  let original = M.empty () |> M.add [1] "ehllo" |> M.add [1;2] "hello world" in
+  let original = M.empty |> M.add 12 'c' in
+  let v1 = original |> M.add 12 'd' in
+  let v2 = original |> M.add 12 'e' in
+  let m = M.merge3 ~ancestor:original v1 v2 in
+  let _ = M.iter (fun k s -> Printf.printf "%s\n" (string_of_int k ^ " : " ^ String.make 1 s)) m in
+  ()
+
+(* module M = Mmap_avltree.Make(IntKey)(RString)
+
+let _ =
+  let original = M.empty |> M.add 12 "hello world" in
+  let v1 = original |> M.add 12 "hello there" in
+  let v2 = original |> M.add 12 "hello ocaml" in
+  let m = M.merge3 ~ancestor:original v1 v2 in
+  let _ = M.iter (fun k s -> Printf.printf "%s\n" (string_of_int k ^ " : " ^ s)) m in
+  () *)
+
+(* module M = Mmap_trie.Make(IntKey)(RString)
+
+let klts (kl:IntKey.t list) = List.fold_right (fun a b -> IntKey.to_string a ^ b) kl "" 
+let _ =
+  let original = M.empty |> M.add [1] "ehllo" |> M.add [1;2] "hello world" in
   let v1 = original |> M.add [1] "hello" |> M.add [1; 2] "hello there" in
   let v2 = original |> M.add [1] "hello" |> M.add [1; 2] "hello ocaml" |> M.add [2] "bye" in
   let m = M.merge3 ~ancestor:original v1 v2 in
-  M.iter (fun k s -> Printf.printf "%s\n" ((keylist_to_string k) ^ " : " ^ s)) m
+  M.iter (fun k s -> Printf.printf "%s\n" ((klts k) ^ " : " ^ s)) m *)

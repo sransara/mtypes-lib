@@ -25,7 +25,7 @@ module type S = sig
   type t
   type atom
   type key
-  val empty : unit -> t
+  val empty : t
   val is_empty : t -> bool
   val add : key -> atom -> t -> t
   val find : key -> t -> atom
@@ -34,7 +34,7 @@ module type S = sig
   val iter : (key -> atom -> unit) -> t -> unit
   val map : (atom -> atom) -> t -> t 
   val mapi : (key -> atom -> atom) -> t -> t
-  val fold : (key -> atom -> atom -> atom) -> t -> atom -> atom
+  val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
   val compare : (atom -> atom -> int) -> t -> t -> int
   val equal : t -> t -> bool
   include Mtypes.RESOLVEABLE with type t := t
@@ -49,13 +49,27 @@ module Make (Key: KEY) (Atom: ATOM)  : S
   with type atom = Atom.t 
    and type key = Key.t list = 
 struct
-  (* TODO: To fix Error: Cannot safely evaluate the definition
-        of the recursively-defined module Trie 
-        Map.empty signature was changed to unit -> t 
-        Is there a way to use the default? *)
-  module rec Trie : S 
-    with type atom = Atom.t 
-     and type key = Key.t list = 
+  module rec Trie : sig 
+    type t
+    type atom
+    type key
+    (* Hacky fix to the unsafe recursive module definition *)
+    val empty: unit -> t
+    val is_empty : t -> bool
+    val add : key -> atom -> t -> t
+    val find : key -> t -> atom
+    val remove : key -> t -> t
+    val mem : key -> t -> bool
+    val iter : (key -> atom -> unit) -> t -> unit
+    val map : (atom -> atom) -> t -> t 
+    val mapi : (key -> atom -> atom) -> t -> t
+    val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
+    val compare : (atom -> atom -> int) -> t -> t -> int
+    val equal : t -> t -> bool
+    include Mtypes.RESOLVEABLE with type t := t
+  end 
+  with type atom = Atom.t 
+   and type key = Key.t list = 
   struct
     type key = Key.t list
     type atom = Atom.t
@@ -64,7 +78,7 @@ struct
 
     type t = Node of atom option * M.t
 
-    let empty () = Node (None, M.empty ())
+    let empty () = Node (None, M.empty)
 
     let is_empty = function
       | Node (None, m1) -> M.is_empty m1
@@ -203,4 +217,6 @@ struct
   end
 
   include Trie
+
+  let empty = empty ()
 end
