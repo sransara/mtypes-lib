@@ -27,7 +27,7 @@ exception Empty
 
 module type ATOM = Mheap.ATOM
 
-module PairingHeap (Atom: ATOM) (* : Mheap.S *) =
+module Make (Atom: ATOM) (* : Mheap.S *) =
 struct
   type atom = Atom.t
   type t = E | T of atom * t list
@@ -55,8 +55,17 @@ struct
 
   let delete_min = function
     | E -> raise Empty
+    | T (x, hs) -> merge_pairs hs
+  
+  let pop_min = function
+    | E -> raise Empty
     | T (x, hs) -> x, merge_pairs hs
 
+  let rec elements h =
+    if is_empty h then []
+    else
+      let min, h' = pop_min h in
+      min::(elements h')
 
   (* Patching *)
   type edit =
@@ -64,29 +73,33 @@ struct
     | Delete of atom
   type patch = edit list
 
+  let edit_to_string atom_to_string = function
+  | Insert (a) -> Printf.sprintf "Insert (%s)" (atom_to_string a)
+  | Delete (a) -> Printf.sprintf "Delete (%s)" (atom_to_string a)
+
   let op_diff xt yt =
     let rec heap_diff hx hy =
       match hx, hy with
       | E, E -> []
       | E, _ ->
-        let m, hy = delete_min hy in
+        let m, hy = pop_min hy in
         Insert m :: heap_diff hx hy
       | _, E ->
-        let m, hx = delete_min hx in
+        let m, hx = pop_min hx in
         Delete m :: heap_diff hx hy
       | _, _ ->
         let a1 = find_min hx in
         let a2 = find_min hy in
         let c = Atom.compare a1 a2 in
         if c = 0 then
-          let _, hy = delete_min hy in
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
+          let hx = delete_min hx in
           heap_diff hx hy
         else if c < 0 then (* a1 < a2 *)
-          let _, hy = delete_min hy in
+          let hx = delete_min hx in
           Delete a1 :: heap_diff hx hy
         else (* c > 0 = a1 > a2 *)
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
           Insert a2 :: heap_diff hx hy
     in
     heap_diff xt yt
@@ -116,13 +129,13 @@ struct
           let on_conflict () =
             let a, b = transform_aux rxs rys in
             (* Insert takes precedence: So reinsert the deleted element *)
-            hx::hx::a, b in
+            hx::a, hy::b in
           handle x y on_conflict
         | Delete x, Insert y ->
           let on_conflict () =
             let a, b = transform_aux rxs rys in
             (* Insert takes precedence: So reinsert the deleted element *)
-            a, hy::hy::b in
+            hx::a, hy::b in
           handle x y on_conflict
     in
     transform_aux p q
@@ -130,17 +143,25 @@ struct
   (* Merging *)
   let resolve x y = merge x y
 
-  let rec apply s = function
-    | [] -> s
-    | Insert x::r -> let s' = insert x s in apply s' r
+  let apply h edits = 
+    let rec aux h hacc edits =
+    match edits with
+    | [] -> merge h hacc
+    | Insert x::r -> 
+      let hacc' = insert x hacc in 
+      aux h hacc' r
     | Delete x::r -> 
-      let xx, s' = delete_min s in
+      let xx, h' = pop_min h in
       let _ = assert (x = xx) in
-      apply s' r
+      aux h' hacc r
+    in
+    aux h empty edits
 
   let merge3 ~ancestor l r =
     let p = op_diff ancestor l in
     let q = op_diff ancestor r in
     let _,q' = op_transform p q in
     apply l q'
+    (* let p',_ = op_transform p q in
+    apply r p' *)
 end

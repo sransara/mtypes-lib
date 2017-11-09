@@ -71,13 +71,16 @@ struct
 
   let delete_min ts =
     let Node (_, x, ts1), ts2 = remove_min_tree ts in
+    merge (List.rev ts1) ts2
+
+  let pop_min ts =
+    let Node (_, x, ts1), ts2 = remove_min_tree ts in
     x, merge (List.rev ts1) ts2
 
   let rec elements h =
     if is_empty h then []
     else
-      let min = find_min h in
-      let x, h' = delete_min h in
+      let x, h' = pop_min h in
       min::(elements h')
 
   (* Patching *)
@@ -86,29 +89,33 @@ struct
     | Delete of atom
   type patch = edit list
 
+  let edit_to_string atom_to_string = function
+  | Insert (a) -> Printf.sprintf "Insert (%s)" (atom_to_string a)
+  | Delete (a) -> Printf.sprintf "Delete (%s)" (atom_to_string a)
+
   let op_diff xt yt =
     let rec heap_diff hx hy =
       match hx, hy with
       | [], [] -> []
       | [], _ ->
-        let m, hy = delete_min hy in
+        let m, hy = pop_min hy in
         Insert m :: heap_diff hx hy
       | _, [] ->
-        let m, hx = delete_min hx in
+        let m, hx = pop_min hx in
         Delete m :: heap_diff hx hy
       | _, _ ->
         let a1 = find_min hx in
         let a2 = find_min hy in
         let c = Atom.compare a1 a2 in
         if c = 0 then
-          let _, hy = delete_min hy in
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
+          let hx = delete_min hx in
           heap_diff hx hy
         else if c < 0 then (* a1 < a2 *)
-          let _, hy = delete_min hy in
+          let hx = delete_min hx in
           Delete a1 :: heap_diff hx hy
         else (* c > 0 = a1 > a2 *)
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
           Insert a2 :: heap_diff hx hy
     in
     heap_diff xt yt
@@ -156,7 +163,7 @@ struct
     | [] -> s
     | Insert x::r -> let s' = insert x s in apply s' r
     | Delete x::r -> 
-      let xx, s' = delete_min s in
+      let xx, s' = pop_min s in
       let _ = assert (x = xx) in
       apply s' r
 

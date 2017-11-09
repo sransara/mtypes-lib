@@ -15,7 +15,8 @@ module type Base = sig
   val merge : t -> t -> t
 
   val find_min : t -> atom  (* raises Empty if heap is empty *)
-  val delete_min : t -> atom * t   (* raises Empty if heap is empty *)
+  val delete_min : t -> t   (* raises Empty if heap is empty *)
+  val pop_min : t -> atom * t   (* raises Empty if heap is empty *)
 end
 
 module type S = sig

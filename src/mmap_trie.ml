@@ -40,12 +40,10 @@ module type S = sig
   include Mtypes.RESOLVEABLE with type t := t
 end
 
-(* TODO: Functorise the Mergeable map module *)
-module Map = Mmap_avltree
 module type KEY = Mmap.KEY
 module type ATOM = Mmap.ATOM
 
-module Make (Key: KEY) (Atom: ATOM)  : S 
+module Make (Key: KEY) (Atom: ATOM) (MM: Mmap.Make)  : S 
   with type atom = Atom.t 
    and type key = Key.t list = 
 struct
@@ -74,7 +72,7 @@ struct
     type key = Key.t list
     type atom = Atom.t
 
-    module M = Map.Make(Key)(Trie)
+    module M = MM(Key)(Trie)
 
     type t = Node of atom option * M.t
 

@@ -43,3 +43,7 @@ module type S = sig
   (* Merging *)
   include Mtypes.RESOLVEABLE with type t := t
 end
+
+module type Make = functor (Key : KEY) (Atom : ATOM) -> S
+  with type key = Key.t 
+  and type atom = Atom.t 

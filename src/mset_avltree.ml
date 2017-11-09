@@ -472,6 +472,10 @@ struct
     | Remove of atom
   type patch = edit list
 
+  let edit_to_string atom_to_string = function
+  | Add (a) -> Printf.sprintf "Add (%s)" (atom_to_string a)
+  | Remove (a) -> Printf.sprintf "Remove (%s)" (atom_to_string a)
+
   let op_diff xt yt =
     (* TODO: Use reverse appends for faster list manipulations *)
     let rec diff_avlt s1 s2 =

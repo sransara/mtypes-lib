@@ -13,6 +13,7 @@ module type Base = sig
   type t
   type atom
 
+  val empty: t
   val length : t -> int
   val set : t -> int -> atom -> t
   val get : t -> int -> atom
@@ -23,6 +24,7 @@ end
 module type S = sig
   include Base
 
+
   (* Merging *)
   type edit =
     | Ins of int * atom
@@ -30,6 +32,9 @@ module type S = sig
     | Rep of int * atom * atom
 
   include Mtypes.PATCHABLE with type t := t and type edit := edit
+
+  (* For presentational purposes *)
+  val edit_to_string: (atom -> string) -> edit -> string
 
   (* Merging *)
   include Mtypes.MERGEABLE with type t := t
@@ -48,6 +53,11 @@ struct
     | Rep of int * atom * atom
 
   type patch = edit list
+
+  let edit_to_string atom_to_string = function
+  | Ins (i, a) -> Printf.sprintf "Ins (%i, %s)" i (atom_to_string a)
+  | Del (i, a) -> Printf.sprintf "Del (%i, %s)" i (atom_to_string a)
+  | Rep (i, a, b) -> Printf.sprintf "Rep (%i, %s, %s)" i (atom_to_string a) (atom_to_string b)
 
   let op_diff xs ys =
     let cache = Array.init (V.length xs+1)

@@ -431,6 +431,11 @@ struct
     | Replace of key * atom * atom
   type patch = edit list
 
+  let edit_to_string key_to_string atom_to_string = function
+  | Add (k, a) -> Printf.sprintf "Add (%s, %s)" (key_to_string k) (atom_to_string a)
+  | Remove (k) -> Printf.sprintf "Remove (%s)" (key_to_string k)
+  | Replace (k, a, b) -> Printf.sprintf "Rep (%s, %s, %s)" (key_to_string k) (atom_to_string a) (atom_to_string b)
+
   let op_diff xt yt = 
      (* TODO: Use reverse appends for faster list manipulations *)
     let rec diff_avltree s1 s2 =

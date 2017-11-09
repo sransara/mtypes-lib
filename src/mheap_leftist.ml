@@ -50,13 +50,13 @@ struct
 
   let insert x h = merge (T (1, x, E, E)) h
   let find_min = function E -> raise Empty | T (_, x, _, _) -> x
-  let delete_min = function E -> raise Empty | T (_, x, a, b) -> x, merge a b
+  let delete_min = function E -> raise Empty | T (_, x, a, b) -> merge a b
+  let pop_min = function E -> raise Empty | T (_, x, a, b) -> x, merge a b
 
   let rec elements h =
     if is_empty h then []
     else
-      let min = find_min h in
-      let x, h' = delete_min h in
+      let min, h' = pop_min h in
       min::(elements h')
 
   (* Patching *)
@@ -64,30 +64,34 @@ struct
     | Insert of atom
     | Delete of atom
   type patch = edit list
+  
+  let edit_to_string atom_to_string = function
+  | Insert (a) -> Printf.sprintf "Insert (%s)" (atom_to_string a)
+  | Delete (a) -> Printf.sprintf "Delete (%s)" (atom_to_string a)
 
   let op_diff xt yt =
     let rec heap_diff hx hy =
       match hx, hy with
       | E, E -> []
       | E, _ ->
-        let m, hy = delete_min hy in
+        let m, hy = pop_min hy in
         Insert m :: heap_diff hx hy
       | _, E ->
-        let m, hx = delete_min hx in
+        let m, hx = pop_min hx in
         Delete m :: heap_diff hx hy
       | _, _ ->
         let a1 = find_min hx in
         let a2 = find_min hy in
         let c = Atom.compare a1 a2 in
         if c = 0 then
-          let _, hy = delete_min hy in
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
+          let hx = delete_min hx in
           heap_diff hx hy
         else if c < 0 then (* a1 < a2 *)
-          let _, hy = delete_min hy in
+          let hx = delete_min hx in
           Delete a1 :: heap_diff hx hy
         else (* c > 0 = a1 > a2 *)
-          let _, hx = delete_min hx in
+          let hy = delete_min hy in
           Insert a2 :: heap_diff hx hy
     in
     heap_diff xt yt
@@ -135,7 +139,7 @@ struct
     | [] -> s
     | Insert x::r -> let s' = insert x s in apply s' r
     | Delete x::r -> 
-      let xx, s' = delete_min s in
+      let xx, s' = pop_min s in
       let _ = assert (x = xx) in
       apply s' r
 
