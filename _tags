@@ -4,3 +4,5 @@ true:   debug
 "lib":  include
 "src":  include
 "test": include
+
+<benchmarking.{native,byte}> : package(unix)
