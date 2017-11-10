@@ -1,5 +1,0 @@
-B _build/**
-
-S lib
-S src
-S test

@@ -1,0 +1,6 @@
+(jbuild_version 1)
+
+(library
+  ((name        mtypes)
+  (public_name mtypes)
+  (wrapped     true)))
