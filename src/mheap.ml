@@ -27,8 +27,8 @@ module type S = sig
     | Insert of atom
     | Delete of atom
   
-  include Mtypes.PATCHABLE with type t := t and type edit := edit
+  include Mwrap.PATCHABLE with type t := t and type edit := edit
 
   (* Merging *)
-  include Mtypes.RESOLVEABLE with type t := t
+  include Mwrap.RESOLVEABLE with type t := t
 end

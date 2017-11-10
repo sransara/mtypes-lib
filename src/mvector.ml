@@ -6,7 +6,7 @@
 
 module type ATOM = sig
   type t
-  include Mtypes.RESOLVEABLE with type t := t
+  include Mwrap.RESOLVEABLE with type t := t
 end
 
 module type Base = sig
@@ -31,13 +31,13 @@ module type S = sig
     | Del of int * atom
     | Rep of int * atom * atom
 
-  include Mtypes.PATCHABLE with type t := t and type edit := edit
+  include Mwrap.PATCHABLE with type t := t and type edit := edit
 
   (* For presentational purposes *)
   val edit_to_string: (atom -> string) -> edit -> string
 
   (* Merging *)
-  include Mtypes.MERGEABLE with type t := t
+  include Mwrap.MERGEABLE with type t := t
 end
 
 module Make (Atom: ATOM) (V: Base with type atom = Atom.t) : S
@@ -99,7 +99,7 @@ struct
         Array.unsafe_set cache_i j (Some res);
         res
     in
-    let d,e = loop (V.length xs) (V.length ys) in
+    let _,e = loop (V.length xs) (V.length ys) in
     List.rev e
 
   let index = function
@@ -166,10 +166,10 @@ struct
     | Ins(pos,c)::tl ->
       let s' = V.insert s (pos+off) c in
       apply (off + 1) s' tl
-    | Rep(pos,x,x')::tl ->
+    | Rep(pos, _, x')::tl ->
       let s' = V.set s (pos + off) x' in
       apply off s' tl
-    | Del(pos,x)::tl ->
+    | Del(pos, _)::tl ->
       let s' = V.delete s (pos + off) in
       apply (off - 1) s' tl
 

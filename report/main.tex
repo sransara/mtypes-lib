@@ -302,9 +302,9 @@ let module M = struct
       assert (0 <= i && (i + 1) <= String.length t);
     let get = String.get
     let insert t i c =
-      (* removed for clarity *)
+      (* truncated for clarity *)
     let delete t i =
-      (* removed for clarity *)
+      (* truncated for clarity *)
   end
 
   module Mstring = Mvector.Make(CharAtom)(V)
@@ -994,11 +994,11 @@ module Document (* : Mvector.S *) = struct
     let empty = ""
     let length = String.length
     let set t i a =
-      (* Removed for clarity *)
+      (* truncated for clarity *)
     let insert t i c =
-      (* Removed for clarity *)
+      (* truncated for clarity *)
     let delete t i =
-      (* Removed for clarity *)
+      (* truncated for clarity *)
   end
   module M = Mvector.Make(A)(V)
   include M

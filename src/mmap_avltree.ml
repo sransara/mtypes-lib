@@ -25,7 +25,7 @@ struct
 
   let height = function
       Empty -> 0
-    | Node {h} -> h
+    | Node {h; _} -> h
 
   let create l x d r =
     let hl = height l and hr = height r in
@@ -34,30 +34,30 @@ struct
   let singleton x d = Node{l=Empty; v=x; d; r=Empty; h=1}
 
   let bal l x d r =
-    let hl = match l with Empty -> 0 | Node {h} -> h in
-    let hr = match r with Empty -> 0 | Node {h} -> h in
+    let hl = match l with Empty -> 0 | Node {h; _} -> h in
+    let hr = match r with Empty -> 0 | Node {h; _} -> h in
     if hl > hr + 2 then begin
       match l with
         Empty -> invalid_arg "Map.bal"
-      | Node{l=ll; v=lv; d=ld; r=lr} ->
+      | Node{l=ll; v=lv; d=ld; r=lr; _} ->
         if height ll >= height lr then
           create ll lv ld (create lr x d r)
         else begin
           match lr with
             Empty -> invalid_arg "Map.bal"
-          | Node{l=lrl; v=lrv; d=lrd; r=lrr}->
+          | Node{l=lrl; v=lrv; d=lrd; r=lrr; _}->
             create (create ll lv ld lrl) lrv lrd (create lrr x d r)
         end
     end else if hr > hl + 2 then begin
       match r with
         Empty -> invalid_arg "Map.bal"
-      | Node{l=rl; v=rv; d=rd; r=rr} ->
+      | Node{l=rl; v=rv; d=rd; r=rr; _} ->
         if height rr >= height rl then
           create (create l x d rl) rv rd rr
         else begin
           match rl with
             Empty -> invalid_arg "Map.bal"
-          | Node{l=rll; v=rlv; d=rld; r=rlr} ->
+          | Node{l=rll; v=rlv; d=rld; r=rlr; _} ->
             create (create l x d rll) rlv rld (create rlr rv rd rr)
         end
     end else
@@ -84,7 +84,7 @@ struct
   let rec find x = function
       Empty ->
       raise Not_found
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       let c = Key.compare x v in
       if c = 0 then d
       else find x (if c < 0 then l else r)
@@ -92,7 +92,7 @@ struct
   let rec find_first_aux v0 d0 f = function
       Empty ->
       (v0, d0)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_first_aux v d f l
       else
@@ -101,7 +101,7 @@ struct
   let rec find_first f = function
       Empty ->
       raise Not_found
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_first_aux v d f l
       else
@@ -110,7 +110,7 @@ struct
   let rec find_first_opt_aux v0 d0 f = function
       Empty ->
       Some (v0, d0)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_first_opt_aux v d f l
       else
@@ -119,7 +119,7 @@ struct
   let rec find_first_opt f = function
       Empty ->
       None
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_first_opt_aux v d f l
       else
@@ -128,7 +128,7 @@ struct
   let rec find_last_aux v0 d0 f = function
       Empty ->
       (v0, d0)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_last_aux v d f r
       else
@@ -137,7 +137,7 @@ struct
   let rec find_last f = function
       Empty ->
       raise Not_found
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_last_aux v d f r
       else
@@ -146,7 +146,7 @@ struct
   let rec find_last_opt_aux v0 d0 f = function
       Empty ->
       Some (v0, d0)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_last_opt_aux v d f r
       else
@@ -154,7 +154,7 @@ struct
 
   let rec find_last_opt f = function
     | Empty -> None
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       if f v then
         find_last_opt_aux v d f r
       else
@@ -162,41 +162,41 @@ struct
 
   let rec find_opt x = function
     | Empty -> None
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       let c = Key.compare x v in
       if c = 0 then Some d
       else find_opt x (if c < 0 then l else r)
 
   let rec mem x = function
     | Empty -> false
-    | Node {l; v; r} ->
+    | Node {l; v; r; _} ->
       let c = Key.compare x v in
       c = 0 || mem x (if c < 0 then l else r)
 
   let rec min_binding = function
     | Empty -> raise Not_found
-    | Node {l=Empty; v; d} -> (v, d)
-    | Node {l} -> min_binding l
+    | Node {l=Empty; v; d; _} -> (v, d)
+    | Node {l; _} -> min_binding l
 
   let rec min_binding_opt = function
     | Empty -> None
-    | Node {l=Empty; v; d} -> Some (v, d)
-    | Node {l}-> min_binding_opt l
+    | Node {l=Empty; v; d; _} -> Some (v, d)
+    | Node {l; _}-> min_binding_opt l
 
   let rec max_binding = function
     | Empty -> raise Not_found
-    | Node {v; d; r=Empty} -> (v, d)
-    | Node {r} -> max_binding r
+    | Node {v; d; r=Empty; _} -> (v, d)
+    | Node {r; _} -> max_binding r
 
   let rec max_binding_opt = function
     | Empty -> None
-    | Node {v; d; r=Empty} -> Some (v, d)
-    | Node {r} -> max_binding_opt r
+    | Node {v; d; r=Empty; _} -> Some (v, d)
+    | Node {r; _} -> max_binding_opt r
 
   let rec remove_min_binding = function
     | Empty -> invalid_arg "Map.remove_min_elt"
-    | Node {l=Empty; r} -> r
-    | Node {l; v; d; r} -> bal (remove_min_binding l) v d r
+    | Node {l=Empty; r; _} -> r
+    | Node {l; v; d; r; _} -> bal (remove_min_binding l) v d r
 
   let merge t1 t2 =
     match (t1, t2) with
@@ -208,7 +208,7 @@ struct
 
   let rec remove x = function
     | Empty -> Empty
-    | (Node {l; v; d; r} as m) ->
+    | (Node {l; v; d; r; _} as m) ->
       let c = Key.compare x v in
       if c = 0 then merge l r
       else if c < 0 then
@@ -238,7 +238,7 @@ struct
 
   let rec iter f = function
     | Empty -> ()
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       iter f l; f v d; iter f r
 
   let rec map f = function
@@ -260,16 +260,16 @@ struct
   let rec fold f m accu =
     match m with
     | Empty -> accu
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       fold f r (f v d (fold f l accu))
 
   let rec for_all p = function
     | Empty -> true
-    | Node {l; v; d; r} -> p v d && for_all p l && for_all p r
+    | Node {l; v; d; r; _} -> p v d && for_all p l && for_all p r
 
   let rec exists p = function
     | Empty -> false
-    | Node {l; v; d; r} -> p v d || exists p l || exists p r
+    | Node {l; v; d; r; _} -> p v d || exists p l || exists p r
 
   (* Beware: those two functions assume that the added k is *strictly*
      smaller (or bigger) than all the present keys in the tree; it
@@ -281,12 +281,12 @@ struct
 
   let rec add_min_binding k x = function
     | Empty -> singleton k x
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       bal (add_min_binding k x l) v d r
 
   let rec add_max_binding k x = function
     | Empty -> singleton k x
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       bal l v d (add_max_binding k x r)
 
   (* Same as create and bal, but no assumptions are made on the
@@ -320,7 +320,7 @@ struct
 
   let rec split x = function
     | Empty -> (Empty, None, Empty)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       let c = Key.compare x v in
       if c = 0 then (l, Some d, r)
       else if c < 0 then
@@ -334,7 +334,7 @@ struct
     | (Node {l=l1; v=v1; d=d1; r=r1; h=h1}, _) when h1 >= height s2 ->
       let (l2, d2, r2) = split v1 s2 in
       concat_or_join (merge f l1 l2) v1 (f v1 (Some d1) d2) (merge f r1 r2)
-    | (_, Node {l=l2; v=v2; d=d2; r=r2}) ->
+    | (_, Node {l=l2; v=v2; d=d2; r=r2; _}) ->
       let (l1, d1, r1) = split v2 s1 in
       concat_or_join (merge f l1 l2) v2 (f v2 d1 (Some d2)) (merge f r1 r2)
     | _ -> assert false
@@ -358,7 +358,7 @@ struct
 
   let rec filter p = function
     | Empty -> Empty
-    | Node {l; v; d; r} as m ->
+    | Node {l; v; d; r; _} as m ->
       (* call [p] in the expected left-to-right order *)
       let l' = filter p l in
       let pvd = p v d in
@@ -368,7 +368,7 @@ struct
 
   let rec partition p = function
     | Empty -> (Empty, Empty)
-    | Node {l; v; d; r} ->
+    | Node {l; v; d; r; _} ->
       (* call [p] in the expected left-to-right order *)
       let (lt, lf) = partition p l in
       let pvd = p v d in
@@ -382,7 +382,7 @@ struct
   let rec cons_enum m e =
     match m with
     | Empty -> e
-    | Node {l; v; d; r} -> cons_enum l (More(v, d, r, e))
+    | Node {l; v; d; r; _} -> cons_enum l (More(v, d, r, e))
 
   let compare cmp m1 m2 =
     let rec compare_aux e1 e2 =
@@ -411,11 +411,11 @@ struct
 
   let rec cardinal = function
     | Empty -> 0
-    | Node {l; r} -> cardinal l + 1 + cardinal r
+    | Node {l; r; _} -> cardinal l + 1 + cardinal r
 
   let rec bindings_aux accu = function
     | Empty -> accu
-    | Node {l; v; d; r} -> bindings_aux ((v, d) :: bindings_aux accu r) l
+    | Node {l; v; d; r; _} -> bindings_aux ((v, d) :: bindings_aux accu r) l
 
   let bindings s =
     bindings_aux [] s
@@ -432,16 +432,16 @@ struct
   type patch = edit list
 
   let edit_to_string key_to_string atom_to_string = function
-  | Add (k, a) -> Printf.sprintf "Add (%s, %s)" (key_to_string k) (atom_to_string a)
-  | Remove (k) -> Printf.sprintf "Remove (%s)" (key_to_string k)
-  | Replace (k, a, b) -> Printf.sprintf "Rep (%s, %s, %s)" (key_to_string k) (atom_to_string a) (atom_to_string b)
+    | Add (k, a) -> Printf.sprintf "Add (%s, %s)" (key_to_string k) (atom_to_string a)
+    | Remove (k) -> Printf.sprintf "Remove (%s)" (key_to_string k)
+    | Replace (k, a, b) -> Printf.sprintf "Rep (%s, %s, %s)" (key_to_string k) (atom_to_string a) (atom_to_string b)
 
   let op_diff xt yt = 
-     (* TODO: Use reverse appends for faster list manipulations *)
+    (* TODO: Use reverse appends for faster list manipulations *)
     let rec diff_avltree s1 s2 =
       match (s1, s2) with
       | (Empty, s) -> fold (fun k x y ->  y @ [Add (k,x)]) s []
-      | (s, Empty) -> fold (fun k x y -> y @ [Remove k]) s []
+      | (s, Empty) -> fold (fun k _ y -> y @ [Remove k]) s []
       | (Node {l=l1; v=v1; d=d1; r=r1; h=h1}, Node {l=l2; v=v2; d=d2; r=r2; h=h2}) ->
         if h1 >= h2 then
           let (l2, d2, r2) = split v1 s2 in
@@ -494,13 +494,13 @@ struct
               let a, b = transform_aux rxs ys in
               Add (kx, m)::a, Add(ky, m)::b in
           handle kx ky on_conflict
-        | Add (kx, x), Replace (ky, ay, y) ->
+        | Add (kx, _), Replace (ky, _, _) ->
           let on_conflict = fun () -> assert false in
           handle kx ky on_conflict
-        | Add (kx, x), Remove ky ->
+        | Add (kx, _), Remove ky ->
           let on_conflict = fun () -> assert false in
           handle kx ky on_conflict
-        | Replace (kx, ax, x), Add (ky, y) ->
+        | Replace (kx, _, _), Add (ky, _) ->
           let on_conflict = fun () -> assert false in
           handle kx ky on_conflict
         | Replace (kx, ax, x), Replace (ky, ay, y) ->
@@ -512,15 +512,15 @@ struct
               let a, b = transform_aux rxs rys in
               Replace (kx, ax, m)::a, Replace (ky, ay, m)::b in
           handle kx ky on_conflict
-        | Replace (kx, ax, x), Remove ky ->
+        | Replace (kx, _, x), Remove ky ->
           let on_conflict () =
             let a, b = transform_aux rxs rys in
             a, Add (kx,x)::b in
           handle kx ky on_conflict
-        | Remove kx, Add (ky, y) ->
+        | Remove kx, Add (ky, _) ->
           let on_conflict = fun () -> assert false in
           handle kx ky on_conflict
-        | Remove kx, Replace (ky, ay, y) ->
+        | Remove kx, Replace (ky, _, y) ->
           let on_conflict () =
             let a, b = transform_aux rxs rys in
             Add (ky, y)::a, b in
@@ -533,14 +533,14 @@ struct
 
   (* Merging *)
   let resolve = 
-    let aux k x y = Some (Atom.resolve x y) in
+    let aux _ x y = Some (Atom.resolve x y) in
     union aux
 
   let rec apply s = function
     | [] -> s
     | Add (k, x)::r -> let s' = add k x s in apply s' r
     | Remove (k)::r -> let s' = remove k s in apply s' r
-    | Replace (k, a, x)::r -> let s' = add k x s in apply s' r
+    | Replace (k, _, x)::r -> let s' = add k x s in apply s' r
 
   let merge3 ~ancestor l r =
     let p = op_diff ancestor l in

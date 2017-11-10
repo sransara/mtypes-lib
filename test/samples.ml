@@ -1,3 +1,5 @@
+open Mtypes
+
 (* Utility functions *)
 module U = struct
   let string_of_list f l = "[ " ^ List.fold_left (fun a b -> a ^ (f b) ^ "; ") "" l ^ "]"
@@ -41,7 +43,7 @@ let _ =
   in
 
   let m = M.merge3 ~ancestor:original v1 v2 in
-  
+
   Printf.printf "merged = apply q' on v1: %s\n" (U.string_of_list CharAtom.to_string m)
 
 (* Vector - Functorized vector *)
@@ -105,12 +107,12 @@ let _ =
     Printf.printf "p = diff original v1: %s\n" (edit_seq_printer p);
     Printf.printf "q = diff original v2: %s\n" (edit_seq_printer q)
   in
-   (* op_transform demonstration *)
-   let p', q' = M.op_transform p q in
-   let _ = 
-     Printf.printf "p' = transformed p: %s\n" (edit_seq_printer p');
-     Printf.printf "q' = transformed q: %s\n" (edit_seq_printer q')
-   in
+  (* op_transform demonstration *)
+  let p', q' = M.op_transform p q in
+  let _ = 
+    Printf.printf "p' = transformed p: %s\n" (edit_seq_printer p');
+    Printf.printf "q' = transformed q: %s\n" (edit_seq_printer q')
+  in
 
   let m = M.merge3 ~ancestor:original v1 v2 in
 
@@ -142,15 +144,15 @@ let _ =
     Printf.printf "p = diff original v1: %s\n" (edit_seq_printer p);
     Printf.printf "q = diff original v2: %s\n" (edit_seq_printer q)
   in
-    (* op_transform demonstration *)
-    let p', q' = M.op_transform p q in
-    let _ = 
-      Printf.printf "p' = transformed p: %s\n" (edit_seq_printer p');
-      Printf.printf "q' = transformed q: %s\n" (edit_seq_printer q')
-    in
+  (* op_transform demonstration *)
+  let p', q' = M.op_transform p q in
+  let _ = 
+    Printf.printf "p' = transformed p: %s\n" (edit_seq_printer p');
+    Printf.printf "q' = transformed q: %s\n" (edit_seq_printer q')
+  in
 
   let m = M.merge3 ~ancestor:original v1 v2 in
-  
+
   Printf.printf "merged = apply q' on v1: %s\n" (U.string_of_list IntAtom.to_string (M.elements m))
 
 (* Map - AVL tree *)
@@ -199,7 +201,7 @@ let _ =
 
   Printf.printf "merged = apply q' on v1:\n";
   M.iter (fun k a -> Printf.printf "%s : %s\n" k (IntAtom.to_string a) ) m 
-  
+
 
 (* Map - Trie *)
 let _ =
@@ -246,7 +248,7 @@ let _ =
   let original = M.empty |> M.insert 'z' |> M.insert 'x' |> M.insert 'c' in
   let v1 = original |> M.delete_min |> M.insert 'a' in
   let v2 = original |> M.insert 'c' |> M.insert 'z' in
-  
+
   (* Edit seq generation demonstration *)
   let ctos = CharAtom.to_string in
   let edit_seq_printer = U.string_of_list (M.edit_to_string ctos) in

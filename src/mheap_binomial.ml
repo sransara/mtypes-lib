@@ -70,7 +70,7 @@ struct
   let find_min ts = root (fst (remove_min_tree ts))
 
   let delete_min ts =
-    let Node (_, x, ts1), ts2 = remove_min_tree ts in
+    let Node (_, _, ts1), ts2 = remove_min_tree ts in
     merge (List.rev ts1) ts2
 
   let pop_min ts =
@@ -80,7 +80,7 @@ struct
   let rec elements h =
     if is_empty h then []
     else
-      let x, h' = pop_min h in
+      let h' = delete_min h in
       min::(elements h')
 
   (* Patching *)

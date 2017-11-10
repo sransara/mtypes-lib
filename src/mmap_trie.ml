@@ -37,7 +37,7 @@ module type S = sig
   val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
   val compare : (atom -> atom -> int) -> t -> t -> int
   val equal : t -> t -> bool
-  include Mtypes.RESOLVEABLE with type t := t
+  include Mwrap.RESOLVEABLE with type t := t
 end
 
 module type KEY = Mmap.KEY
@@ -64,7 +64,7 @@ struct
     val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
     val compare : (atom -> atom -> int) -> t -> t -> int
     val equal : t -> t -> bool
-    include Mtypes.RESOLVEABLE with type t := t
+    include Mwrap.RESOLVEABLE with type t := t
   end 
   with type atom = Atom.t 
    and type key = Key.t list = 
@@ -159,7 +159,7 @@ struct
       in
       traverse [] t
 
-    let rec fold f t acc =
+    let fold f t acc =
       let rec traverse revp t acc = match t with
         | Node (None,m) ->
           M.fold (fun x -> traverse (x::revp)) m acc
@@ -181,7 +181,7 @@ struct
       comp a b
 
     let equal a b =
-      let rec comp a b = match a,b with
+      let comp a b = match a,b with
         | Node (None, m1), Node (None, m2) ->
           M.equal m1 m2
         | Node (Some a, m1), Node (Some b, m2) ->

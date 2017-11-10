@@ -55,7 +55,7 @@ struct
 
   let delete_min = function
     | E -> raise Empty
-    | T (x, hs) -> merge_pairs hs
+    | T (_, hs) -> merge_pairs hs
   
   let pop_min = function
     | E -> raise Empty

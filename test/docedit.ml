@@ -1,3 +1,5 @@
+open Mtypes
+
 (* Document is a Mergeable vector *)
 module Document (* : Mvector.S *) = struct
   module A = struct

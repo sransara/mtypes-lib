@@ -12,7 +12,7 @@ struct
 
   let height = function
       Empty -> 0
-    | Node {h} -> h
+    | Node {h; _} -> h
 
   (* Creates a new node with left son l, value v and right son r.
      We must have all elements of l < v < all elements of r.
@@ -20,8 +20,8 @@ struct
      Inline expansion of height for better speed. *)
 
   let create l v r =
-    let hl = match l with Empty -> 0 | Node {h} -> h in
-    let hr = match r with Empty -> 0 | Node {h} -> h in
+    let hl = match l with Empty -> 0 | Node {h; _} -> h in
+    let hr = match r with Empty -> 0 | Node {h; _} -> h in
     Node{l; v; r; h=(if hl >= hr then hl + 1 else hr + 1)}
 
   (* Same as create, but performs one step of rebalancing if necessary.
@@ -30,30 +30,30 @@ struct
      where no rebalancing is required. *)
 
   let bal l v r =
-    let hl = match l with Empty -> 0 | Node {h} -> h in
-    let hr = match r with Empty -> 0 | Node {h} -> h in
+    let hl = match l with Empty -> 0 | Node {h; _} -> h in
+    let hr = match r with Empty -> 0 | Node {h; _} -> h in
     if hl > hr + 2 then begin
       match l with
         Empty -> invalid_arg "Set.bal"
-      | Node{l=ll; v=lv; r=lr} ->
+      | Node{l=ll; v=lv; r=lr; _} ->
         if height ll >= height lr then
           create ll lv (create lr v r)
         else begin
           match lr with
             Empty -> invalid_arg "Set.bal"
-          | Node{l=lrl; v=lrv; r=lrr}->
+          | Node{l=lrl; v=lrv; r=lrr; _}->
             create (create ll lv lrl) lrv (create lrr v r)
         end
     end else if hr > hl + 2 then begin
       match r with
         Empty -> invalid_arg "Set.bal"
-      | Node{l=rl; v=rv; r=rr} ->
+      | Node{l=rl; v=rv; r=rr; _} ->
         if height rr >= height rl then
           create (create l v rl) rv rr
         else begin
           match rl with
             Empty -> invalid_arg "Set.bal"
-          | Node{l=rll; v=rlv; r=rlr} ->
+          | Node{l=rll; v=rlv; r=rlr; _} ->
             create (create l v rll) rlv (create rlr rv rr)
         end
     end else
@@ -63,7 +63,7 @@ struct
 
   let rec add x = function
       Empty -> Node{l=Empty; v=x; r=Empty; h=1}
-    | Node{l; v; r} as t ->
+    | Node{l; v; r; _} as t ->
       let c = Atom.compare x v in
       if c = 0 then t else
       if c < 0 then
@@ -84,12 +84,12 @@ struct
 
   let rec add_min_element x = function
     | Empty -> singleton x
-    | Node {l; v; r} ->
+    | Node {l; v; r; _} ->
       bal (add_min_element x l) v r
 
   let rec add_max_element x = function
     | Empty -> singleton x
-    | Node {l; v; r} ->
+    | Node {l; v; r; _} ->
       bal l v (add_max_element x r)
 
   (* Same as create and bal, but no assumptions are made on the
@@ -108,30 +108,30 @@ struct
 
   let rec min_elt = function
       Empty -> raise Not_found
-    | Node{l=Empty; v} -> v
-    | Node{l} -> min_elt l
+    | Node{l=Empty; v; _} -> v
+    | Node{l; _} -> min_elt l
 
   let rec min_elt_opt = function
       Empty -> None
-    | Node{l=Empty; v} -> Some v
-    | Node{l} -> min_elt_opt l
+    | Node{l=Empty; v; _} -> Some v
+    | Node{l; _} -> min_elt_opt l
 
   let rec max_elt = function
       Empty -> raise Not_found
-    | Node{v; r=Empty} -> v
-    | Node{r} -> max_elt r
+    | Node{v; r=Empty; _} -> v
+    | Node{r; _} -> max_elt r
 
   let rec max_elt_opt = function
       Empty -> None
-    | Node{v; r=Empty} -> Some v
-    | Node{r} -> max_elt_opt r
+    | Node{v; r=Empty; _} -> Some v
+    | Node{r; _} -> max_elt_opt r
 
   (* Remove the smallest element of the given set *)
 
   let rec remove_min_elt = function
       Empty -> invalid_arg "Set.remove_min_elt"
-    | Node{l=Empty; r} -> r
-    | Node{l; v; r} -> bal (remove_min_elt l) v r
+    | Node{l=Empty; r; _} -> r
+    | Node{l; v; r; _} -> bal (remove_min_elt l) v r
 
   (* Merge two trees l and r into one.
      All elements of l must precede the elements of r.
@@ -162,7 +162,7 @@ struct
   let rec split x = function
       Empty ->
       (Empty, false, Empty)
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       let c = Atom.compare x v in
       if c = 0 then (l, true, r)
       else if c < 0 then
@@ -178,13 +178,13 @@ struct
 
   let rec mem x = function
       Empty -> false
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       let c = Atom.compare x v in
       c = 0 || mem x (if c < 0 then l else r)
 
   let rec remove x = function
       Empty -> Empty
-    | (Node{l; v; r} as t) ->
+    | (Node{l; v; r; _} as t) ->
       let c = Atom.compare x v in
       if c = 0 then merge l r
       else
@@ -219,7 +219,7 @@ struct
     match (s1, s2) with
       (Empty, _) -> Empty
     | (_, Empty) -> Empty
-    | (Node{l=l1; v=v1; r=r1}, t2) ->
+    | (Node{l=l1; v=v1; r=r1; _}, t2) ->
       match split v1 t2 with
         (l2, false, r2) ->
         concat (inter l1 l2) (inter r1 r2)
@@ -230,7 +230,7 @@ struct
     match (s1, s2) with
       (Empty, _) -> Empty
     | (t1, Empty) -> t1
-    | (Node{l=l1; v=v1; r=r1}, t2) ->
+    | (Node{l=l1; v=v1; r=r1; _}, t2) ->
       match split v1 t2 with
         (l2, false, r2) ->
         join (diff l1 l2) v1 (diff r1 r2)
@@ -242,7 +242,7 @@ struct
   let rec cons_enum s e =
     match s with
       Empty -> e
-    | Node{l; v; r} -> cons_enum l (More(v, r, e))
+    | Node{l; v; r; _} -> cons_enum l (More(v, r, e))
 
   let rec compare_aux e1 e2 =
     match (e1, e2) with
@@ -267,7 +267,7 @@ struct
       true
     | _, Empty ->
       false
-    | Node {l=l1; v=v1; r=r1}, (Node {l=l2; v=v2; r=r2} as t2) ->
+    | Node {l=l1; v=v1; r=r1; _}, (Node {l=l2; v=v2; r=r2; _} as t2) ->
       let c = Atom.compare v1 v2 in
       if c = 0 then
         subset l1 l2 && subset r1 r2
@@ -278,24 +278,24 @@ struct
 
   let rec iter f = function
       Empty -> ()
-    | Node{l; v; r} -> iter f l; f v; iter f r
+    | Node{l; v; r; _} -> iter f l; f v; iter f r
 
   let rec fold f s accu =
     match s with
       Empty -> accu
-    | Node{l; v; r} -> fold f r (f v (fold f l accu))
+    | Node{l; v; r; _} -> fold f r (f v (fold f l accu))
 
   let rec for_all p = function
       Empty -> true
-    | Node{l; v; r} -> p v && for_all p l && for_all p r
+    | Node{l; v; r; _} -> p v && for_all p l && for_all p r
 
   let rec exists p = function
       Empty -> false
-    | Node{l; v; r} -> p v || exists p l || exists p r
+    | Node{l; v; r; _} -> p v || exists p l || exists p r
 
   let rec filter p = function
       Empty -> Empty
-    | (Node{l; v; r}) as t ->
+    | (Node{l; v; r; _}) as t ->
       (* call [p] in the expected left-to-right order *)
       let l' = filter p l in
       let pv = p v in
@@ -306,7 +306,7 @@ struct
 
   let rec partition p = function
       Empty -> (Empty, Empty)
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       (* call [p] in the expected left-to-right order *)
       let (lt, lf) = partition p l in
       let pv = p v in
@@ -317,11 +317,11 @@ struct
 
   let rec cardinal = function
       Empty -> 0
-    | Node{l; r} -> cardinal l + 1 + cardinal r
+    | Node{l; r; _} -> cardinal l + 1 + cardinal r
 
   let rec elements_aux accu = function
       Empty -> accu
-    | Node{l; v; r} -> elements_aux (v :: elements_aux accu r) l
+    | Node{l; v; r; _} -> elements_aux (v :: elements_aux accu r) l
 
   let elements s =
     elements_aux [] s
@@ -332,7 +332,7 @@ struct
 
   let rec find x = function
       Empty -> raise Not_found
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       let c = Atom.compare x v in
       if c = 0 then v
       else find x (if c < 0 then l else r)
@@ -340,7 +340,7 @@ struct
   let rec find_first_aux v0 f = function
       Empty ->
       v0
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_first_aux v f l
       else
@@ -349,7 +349,7 @@ struct
   let rec find_first f = function
       Empty ->
       raise Not_found
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_first_aux v f l
       else
@@ -358,7 +358,7 @@ struct
   let rec find_first_opt_aux v0 f = function
       Empty ->
       Some v0
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_first_opt_aux v f l
       else
@@ -367,7 +367,7 @@ struct
   let rec find_first_opt f = function
       Empty ->
       None
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_first_opt_aux v f l
       else
@@ -376,7 +376,7 @@ struct
   let rec find_last_aux v0 f = function
       Empty ->
       v0
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_last_aux v f r
       else
@@ -385,7 +385,7 @@ struct
   let rec find_last f = function
       Empty ->
       raise Not_found
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_last_aux v f r
       else
@@ -394,7 +394,7 @@ struct
   let rec find_last_opt_aux v0 f = function
       Empty ->
       Some v0
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_last_opt_aux v f r
       else
@@ -403,7 +403,7 @@ struct
   let rec find_last_opt f = function
       Empty ->
       None
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       if f v then
         find_last_opt_aux v f r
       else
@@ -411,7 +411,7 @@ struct
 
   let rec find_opt x = function
       Empty -> None
-    | Node{l; v; r} ->
+    | Node{l; v; r; _} ->
       let c = Atom.compare x v in
       if c = 0 then Some v
       else find_opt x (if c < 0 then l else r)
@@ -427,7 +427,7 @@ struct
 
   let rec map f = function
     | Empty -> Empty
-    | Node{l; v; r} as t ->
+    | Node{l; v; r; _} as t ->
       (* enforce left-to-right evaluation order *)
       let l' = map f l in
       let v' = f v in

@@ -50,7 +50,7 @@ struct
 
   let insert x h = merge (T (1, x, E, E)) h
   let find_min = function E -> raise Empty | T (_, x, _, _) -> x
-  let delete_min = function E -> raise Empty | T (_, x, a, b) -> merge a b
+  let delete_min = function E -> raise Empty | T (_, _, a, b) -> merge a b
   let pop_min = function E -> raise Empty | T (_, x, a, b) -> x, merge a b
 
   let rec elements h =
