@@ -1,5 +1,5 @@
 build:
-	jbuilder build @install --dev
+	jbuilder build @install
 
 test: build
 	jbuilder build test/samples.exe 

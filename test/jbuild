@@ -1,12 +1,13 @@
 (jbuild_version 1)
 
-(executable
-    ((name docedit)
-    (modules (docedit))
-    (libraries (mtypes))))
-    
-(executable
-    ((name samples)
-    (modules (samples))
-    (libraries (mtypes))))
-    
+(executables
+    ((names
+        (samples
+        docedit))
+    (modules 
+        (samples
+        docedit))
+    (libraries 
+        (mtypes
+        irmin
+        irmin-unix))))

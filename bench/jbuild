@@ -1,6 +1,15 @@
 (jbuild_version 1)
 
 (executables
-    ((names (inputq storage sworker))
-    (modules (inputq storage sworker protocol))
-    (libraries (lwt lwt.unix))))
+    ((names 
+        (inputq
+        storage
+        sworker))
+    (modules 
+        (inputq 
+        storage
+        sworker
+        protocol))
+    (libraries 
+        (lwt 
+        lwt.unix))))
