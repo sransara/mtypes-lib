@@ -37,7 +37,7 @@ module type S = sig
   val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
   val compare : (atom -> atom -> int) -> t -> t -> int
   val equal : t -> t -> bool
-  include Mwrap.RESOLVEABLE with type t := t
+  include Msigs.RESOLVEABLE with type t := t
 end
 
 module type KEY = Mmap.KEY
@@ -51,7 +51,6 @@ struct
     type t
     type atom
     type key
-    (* Hacky fix to the unsafe recursive module definition *)
     val empty: unit -> t
     val is_empty : t -> bool
     val add : key -> atom -> t -> t
@@ -64,7 +63,7 @@ struct
     val fold : (key -> atom -> 'b -> 'b) -> t -> 'b -> 'b
     val compare : (atom -> atom -> int) -> t -> t -> int
     val equal : t -> t -> bool
-    include Mwrap.RESOLVEABLE with type t := t
+    include Msigs.RESOLVEABLE with type t := t
   end 
   with type atom = Atom.t 
    and type key = Key.t list = 

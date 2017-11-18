@@ -43,8 +43,8 @@ module type S = sig
     | Add of atom
     | Remove of atom
 
-  include Mwrap.PATCHABLE with type t := t and type edit := edit
+  include Msigs.PATCHABLE with type t := t and type edit := edit
 
   (* Merging *)
-  include Mwrap.MERGEABLE with type t := t
+  include Msigs.MERGEABLE with type t := t
 end

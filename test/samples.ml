@@ -24,7 +24,7 @@ let _ =
 
   let original = ['h';'e';'l';'l';'o'] in
   let v1 = ['h';'i';'l';'l';'o'] in
-  let v2 = ['h';'e';'l';'l';'o';'w';'o';'r';'l';'d'] in
+  let v2 = ['a';'h';'e';'l';'l';'o';'w'] in
 
   (* Edit seq generation demonstration *)
   let edit_seq_printer = U.string_of_list (M.edit_to_string CharAtom.to_string) in 

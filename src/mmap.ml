@@ -7,7 +7,7 @@ end
 module type ATOM = sig
   type t
   val equal: t -> t -> bool
-  include Mwrap.RESOLVEABLE with type t := t
+  include Msigs.RESOLVEABLE with type t := t
 end
 
 module type Base = sig
@@ -38,10 +38,10 @@ module type S = sig
     | Remove of key
     | Replace of key * atom * atom
 
-  include Mwrap.PATCHABLE with type t := t and type edit := edit
+  include Msigs.PATCHABLE with type t := t and type edit := edit
 
   (* Merging *)
-  include Mwrap.RESOLVEABLE with type t := t
+  include Msigs.RESOLVEABLE with type t := t
 end
 
 module type Make = functor (Key : KEY) (Atom : ATOM) -> S

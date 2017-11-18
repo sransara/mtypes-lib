@@ -6,7 +6,7 @@
 
 module type ATOM = sig
   type t
-  include Mwrap.RESOLVEABLE with type t := t
+  include Msigs.RESOLVEABLE with type t := t
 end
 
 module type Base = sig
@@ -31,13 +31,13 @@ module type S = sig
     | Del of int * atom
     | Rep of int * atom * atom
 
-  include Mwrap.PATCHABLE with type t := t and type edit := edit
+  include Msigs.PATCHABLE with type t := t and type edit := edit
 
   (* For presentational purposes *)
   val edit_to_string: (atom -> string) -> edit -> string
 
   (* Merging *)
-  include Mwrap.MERGEABLE with type t := t
+  include Msigs.MERGEABLE with type t := t
 end
 
 module Make (Atom: ATOM) (V: Base with type atom = Atom.t) : S

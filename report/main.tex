@@ -366,7 +366,7 @@ All basic operations have O(log n) time complexity.
 
 \subsubsection{Edit sequence generation}\label{set-avlt-diff}
 This algorithm is an adaptation of (Brown and Tarjan 1977) Fast BST Merging Algorithm. 
-Given two BSTs where the size is m and n and (m < n) then the time complexity will be O(mlog(n/m) + (n - m))
+Given two BSTs where the size is m and n and $(m < n)$ then the time complexity will be $O(mlog(n/m) + (n - m))$
 
 An optimization we can do to gain major performance improvements in a content addressable storage 
 is by doing structural comparison of the child trees before recursion. Basically if s1.hash == s2.hash, 
