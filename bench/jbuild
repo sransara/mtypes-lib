@@ -4,12 +4,17 @@
     ((names 
         (inputq
         storage
-        sworker))
+        sworker
+        mworker))
     (modules 
         (inputq 
         storage
         sworker
-        protocol))
+        mworker
+        protocol
+        mset_avltree))
     (libraries 
         (lwt 
-        lwt.unix))))
+        lwt.unix
+        irmin
+        irmin-unix))))

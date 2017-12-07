@@ -1,10 +1,22 @@
+(* Hand derived versioned from Mtypes.Mset_avltree *)
+
+
+open Lwt.Infix
+
 (* Sets over ordered types *)
-module type ATOM = Mset.ATOM
+module type ATOM =
+sig
+  type t
+  val t: t Irmin.Type.t 
+  val compare: t -> t -> int
+  val of_string: string -> t
+end
 
 module Make (Atom: ATOM) (* : Mset.S *) =
 struct
   type atom = Atom.t
-  type t = Empty | Node of {l:t; v:atom; r:t; h:int}
+  type node = {l:t; v:atom; r:t; h:int}
+  and t = Empty | Node of node
 
   (* Sets are represented by balanced binary trees (the heights of the
      children differ by at most 2 *)
@@ -208,11 +220,11 @@ struct
           join (union l1 l2) v1 (union r1 r2)
         end
       else
-        if h1 = 1 then add v1 s2 
-        else begin
-          let (l1, _, r1) = split v2 s1 in
-          join (union l1 l2) v2 (union r1 r2)
-        end
+      if h1 = 1 then add v1 s2 
+      else begin
+        let (l1, _, r1) = split v2 s1 in
+        join (union l1 l2) v2 (union r1 r2)
+      end
 
   let rec inter s1 s2 =
     match (s1, s2) with
@@ -472,8 +484,8 @@ struct
   type patch = edit list
 
   let edit_to_string atom_to_string = function
-  | Add (a) -> Printf.sprintf "Add (%s)" (atom_to_string a)
-  | Remove (a) -> Printf.sprintf "Remove (%s)" (atom_to_string a)
+    | Add (a) -> Printf.sprintf "Add (%s)" (atom_to_string a)
+    | Remove (a) -> Printf.sprintf "Remove (%s)" (atom_to_string a)
 
   let op_diff xt yt =
     (* TODO: Use reverse appends for faster list manipulations *)
@@ -530,10 +542,10 @@ struct
     in
     transform_aux p q
 
-    (* Merging *)
-    let resolve = union
+  (* Merging *)
+  let resolve = union
 
-    let rec apply s = function
+  let rec apply s = function
     | [] -> s
     | Add x::r -> let s' = add x s in apply s' r
     | Remove x::r -> let s' = remove x s in apply s' r
@@ -543,4 +555,224 @@ struct
     let q = op_diff ancestor r in
     let _,q' = op_transform p q in
     apply l q'
+end
+
+module type Config = sig
+  val root: string
+  val init: unit -> unit
+end
+
+module MakeVersioned (Config: Config) (Atom: ATOM) = struct
+  module OM = Make(Atom)
+  module K = Irmin.Hash.SHA1
+
+  let from_just = function (Some x) -> x
+  | None -> failwith "Expected Some. Got None."
+
+  type vnode = {l:K.t; v:OM.atom; r:K.t; h:int64}
+
+  type vt = 
+    | Empty 
+    | Node of vnode
+
+  module M = struct
+    module AO_value = struct
+      type t = vt
+
+      let node = 
+        let open Irmin.Type in
+        record "node" (fun l v r h -> {l;v;r;h})
+        |+ field "l" K.t (fun t -> t.l)
+        |+ field "v" Atom.t (fun t -> t.v)
+        |+ field "r" K.t (fun t -> t.r)
+        |+ field "h" int64 (fun t -> t.h)
+        |> sealr
+
+
+      let t =
+        let open Irmin.Type in
+        variant "t" (fun empty node -> function
+            | Empty -> empty
+            | Node n -> node n)
+        |~ case0 "Empty" Empty
+        |~ case1 "Node" node (fun x -> Node x)
+        |> sealv
+
+      let pp = Irmin.Type.dump t
+
+      let of_string (s:string) =
+        let from_just_ok = function (Ok x) -> x
+        | _ -> failwith "Expected Ok. Got error." in
+        let remove_blanks = Str.global_replace (Str.regexp "[\n\r\t ]") "" in
+        let s = remove_blanks s in
+        match Str.split (Str.regexp "[{}]") s with
+        | ["Empty"] -> Ok Empty
+        | ["Node"; node] ->
+          let rx = Str.regexp "l=\\(.+\\);v=\\(.+\\);r=\\(.+\\);h=\\(.+\\);" in
+          let _ = Str.search_forward rx node 0 in
+          let l = from_just_ok @@ K.of_string @@ Str.matched_group 1 node in
+          let v = Atom.of_string @@ Str.matched_group 2 node in
+          let r = from_just_ok @@ K.of_string @@ Str.matched_group 3 node in
+          let h = Int64.of_string @@ Str.matched_group 4 node in
+          Ok (Node {l;v;r;h})
+        | _ -> Error (`Msg ("invalid entry: " ^ s))
+    end
+
+    module AO_store = struct
+      (* Immutable collection of all versionedt *)
+      module S = Irmin_git.AO(Git_unix.FS)(AO_value)
+      include S
+
+      let create config =
+        let level = Irmin.Private.Conf.key ~doc:"The Zlib compression level."
+            "level" Irmin.Private.Conf.(some int) None
+        in
+        let root = Irmin.Private.Conf.get config Irmin.Private.Conf.root in
+        let level = Irmin.Private.Conf.get config level in
+        Git_unix.FS.create ?root ?level ()
+
+      (* Somehow pulls the config set by Store.init *)
+      (* And creates a Git backend *)
+      let create () = create @@ Irmin_git.config Config.root
+    end
+
+    type t = K.t
+
+    let rec of_adt (a:OM.t) : t Lwt.t  =
+      let aostore = AO_store.create () in
+      let aostore_add value =
+        aostore >>= (fun ao_store -> AO_store.add ao_store value) in
+      aostore_add =<<
+        (match a with
+        | OM.Empty -> Lwt.return @@ Empty
+        | OM.Node {l;v;r;h} -> 
+          (of_adt l >>= fun l' ->
+          of_adt r >>= fun r' ->
+          Lwt.return {l=l'; v; r=r'; h=Int64.of_int h})
+          >>= ((fun n -> Lwt.return @@ (Node n))))
+
+    let rec to_adt (k:t) : OM.t Lwt.t =
+      AO_store.create () >>= fun ao_store ->
+      AO_store.find ao_store k >>= fun t ->
+      let t = from_just t in
+      match t with
+      | Empty -> Lwt.return @@ OM.Empty
+      | Node {l;v;r;h} ->
+      (to_adt l >>= fun l' ->
+      to_adt r >>= fun r' ->
+      Lwt.return {OM.l=l'; OM.v; OM.r=r'; OM.h=Int64.to_int h})
+       >>= (fun n -> Lwt.return @@ (OM.Node n))
+
+    let t = K.t
+
+    let pp = K.pp
+
+    let of_string = K.of_string
+
+    let rec merge ~(old:t Irmin.Merge.promise) v1_k v2_k =
+      let open Irmin.Merge.Infix in
+      old () >>=* fun old_k ->
+      let old_k = from_just old_k in
+      to_adt old_k >>= fun oldv  ->
+      to_adt v1_k >>= fun v1  ->
+      to_adt v2_k >>= fun v2 ->
+      let v = OM.merge3 oldv v1 v2 in
+      of_adt v >>= fun merged_k ->
+      Irmin.Merge.ok merged_k
+
+    let merge = Irmin.Merge.(option (v t merge))
+  end
+
+  module BC_store = struct
+    module Store = Irmin_unix.Git.FS.KV(M)
+    type t = Store.t
+
+    let init ?root ?bare () =
+      Config.init ();
+      let config = Irmin_git.config Config.root in
+      Store.Repo.v config
+
+    let master (repo:Store.repo) = Store.master repo
+
+    let clone t name = Store.clone t name
+
+    let get_branch r ~branch_name = Store.of_branch r branch_name
+
+    let merge s ~into = Store.merge s ~into
+
+    let update t k v = Store.set t k v
+
+    let read t k = Store.find t k
+  end
+
+  module Vpst = struct
+    type store = BC_store.t
+    type st = {master   : store;
+               local    : store;
+               name     : string;
+               next_id  : int}
+    type 'a t = st -> ('a * st) Lwt.t
+
+    let path = ["state"]
+
+    let return (x : 'a) : 'a t = fun st -> Lwt.return (x,st)
+
+    let bind (m1: 'a t) (f: 'a -> 'b t) : 'b t = 
+      fun st -> (m1 st >>= fun (a,st') -> f a st')
+
+    let with_init_version_do (v: OM.t) (m: 'a t) =
+      Lwt_main.run 
+        begin
+          BC_store.init () >>= fun repo -> 
+          BC_store.master repo >>= fun m_br -> 
+          M.of_adt v >>= fun k ->
+          let cinfo = Irmin_unix.info "creating state of master" in
+          BC_store.update m_br path k ~info:cinfo >>= fun () ->
+          BC_store.clone m_br "1_local" >>= fun t_br ->
+          let st = {master=m_br; local=t_br; name="1"; next_id=1} in
+          m st >>= fun (a,_) -> Lwt.return a
+        end
+
+    let fork_version (m: 'a t) : unit t = fun (st: st) ->
+      let thread_f () = 
+        let child_name = st.name^"_"^(string_of_int st.next_id) in
+        let parent_m_br = st.master in
+        (* Ideally, the following has to happen: *)
+        (* BC_store.clone_force parent_m_br m_name >>= fun m_br -> *)
+        (* But, we currently default to an SC mode. Master is global. *)
+        let m_br = parent_m_br in
+        BC_store.clone m_br (child_name^"_local") >>= fun t_br ->
+        let new_st = {master = m_br; local  = t_br; name = child_name; next_id = 1} in
+        m new_st in
+      begin
+        Lwt.async thread_f;
+        Lwt.return ((), {st with next_id=st.next_id+1})
+      end
+
+    let get_latest_version () : OM.t t = fun (st: st) ->
+      BC_store.read st.local path >>= fun k ->
+      M.to_adt @@ from_just k >>= fun td ->
+      Lwt.return (td,st)
+
+    let sync_next_version ?v : OM.t t = fun (st: st) ->
+      (* How do you commit the next version? Simply update path? *)
+      (* 1. Commit to the local branch *)
+      let cinfo = Irmin_unix.info "committing local state" in
+      (match v with 
+       | None -> Lwt.return ()
+       | Some v -> 
+         M.of_adt v >>= fun k -> 
+         BC_store.update st.local path k cinfo) >>= fun () ->
+
+      (* 2. Merge local master to the local branch *)
+      let cinfo = Irmin_unix.info "Merging master into local" in
+      BC_store.merge st.master ~into:st.local ~info:cinfo >>= fun _ ->
+      (* 3. Merge local branch to the local master *)
+      let cinfo = Irmin_unix.info "Merging local into master" in
+      BC_store.merge st.local ~into:st.master ~info:cinfo >>= fun _ ->
+      get_latest_version () st
+
+    let liftLwt (m: 'a Lwt.t) : 'a t = fun st ->
+      m >>= fun a -> Lwt.return (a,st)
+  end
 end
