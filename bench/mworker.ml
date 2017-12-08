@@ -32,8 +32,8 @@ module IntAtom = struct
   let of_string = Int64.of_string
 end
 
-module CMain = MkConfig(struct let root = "/tmp/repos/init" end) 
-module MMain = Mset_avltree.MakeVersioned(CMain)(IntAtom)
+module CInit = MkConfig(struct let root = "/tmp/repos/init.git" end) 
+module MInit = Mset_avltree.MakeVersioned(CInit)(IntAtom)
 
 let n_procs = 2
 
@@ -47,53 +47,66 @@ let inputq_address =
   Unix.ADDR_INET (address, port)
 
 
-module MagicModule (Hack: sig val i: int end) = struct
-  let uri = "/tmp/repos/r" ^ string_of_int Hack.i ^ ".git"
-  let ruri = "git://localhost/tmp/repos/r" ^ string_of_int ((Hack.i + 1) mod n_procs) ^ ".git"
+module WorkerModule (Hack: sig val r: int val rr: int end) = struct
+  let repon = Hack.r
+  let rrepon = Hack.rr
 
-  let mrui = "git://localhost" ^ CMain.root
+  let uri = "/tmp/repos/r" ^ string_of_int repon ^ ".git"
+  let ruri = "git://localhost/tmp/repos/r" ^ string_of_int rrepon ^ ".git"
+
+  let mrui = "git://localhost" ^ CInit.root
 
   module C = MkConfig(struct let root = uri end) 
   module M = Mset_avltree.MakeVersioned(C)(IntAtom)
   module Vpst = M.Vpst
 
-  let funf = fun () ->
+  let rec inputq_handle input output =
+    let open Protocol in
     let (>>=) = Vpst.bind in
-    Vpst.get_latest_version () >>= fun t0 -> 
-    let t0' =  M.OM.add (Int64.of_int @@ Random.bits ())  t0 in
-    Vpst.liftLwt @@ Lwt_unix.sleep 0.4 >>= fun () ->
-    Vpst.sync_next_version ~v:t0' >>= fun t1 ->
-    let t1' =  M.OM.add (Int64.of_int @@ Random.bits ())  t1 in
-    Vpst.liftLwt @@ Lwt_unix.sleep 0.1 >>= fun () ->
-    Vpst.sync_next_version ~v:t1' >>= fun t2 ->
-    let _ = Printf.printf "Alice: %s\n" (U.string_of_list IntAtom.to_string (M.OM.elements t2)) in
-    Vpst.liftLwt @@ Lwt_unix.sleep 1.1 >>= fun () ->
-    Vpst.return ()
+    Vpst.liftLwt @@ Lwt_io.write_value output PopQ >>= fun () ->
+    Vpst.liftLwt @@ Lwt_io.read_value input >>= fun (msg:message) ->
+    match msg with
+    | PoppedQ x ->
+      Vpst.get_latest_version () >>= fun v -> 
+      let v' = M.OM.add (Int64.of_int x) v in
+      Vpst.sync_remote_version ruri ~v:v' >>= fun _ ->
+      Vpst.liftLwt @@ Lwt_log.info_f "Stored %d\n" x >>= fun _ ->
+      inputq_handle input output
+    | _ -> 
+      inputq_handle input output
 
-  let run () = 
-    Random.init Hack.i;
-    Vpst.with_init_remote_do mrui @@ funf ()
+  let main () =
+    let handler (input, output) =
+      Vpst.with_init_remote_do mrui (inputq_handle input output) in
+    Lwt_io.with_connection inputq_address handler
 end
 
-let main_thread () = 
-  let open MMain in
-  BC_store.init () >>= fun repo -> 
-  BC_store.master repo >>= fun m_br -> 
-  M.of_adt OM.Empty >>= fun k ->
-  let cinfo = Irmin_unix.info "THE Ancestor" in
-  BC_store.update m_br ["state"] k ~info:cinfo >>= fun () ->
-  let rec aux i n =
-    match Unix.fork () with
-    | 0 -> 
-      let module MM = MagicModule(struct let i = i end) in
-      MM.run ()
-    | pid ->
-      Lwt_log.info "Forked" >>= fun () ->
-      if i < (n-1) then aux (i+1) n
-      else () in
-  Lwt.return @@ aux 0 n_procs
-
 let () = 
-  Lwt.async main_thread;
-  let (t, _) = Lwt.wait () in
-  Lwt_main.run t
+  match Sys.argv with
+  | [| me; "init" |] ->
+    Lwt_main.run begin
+      let open MInit in
+      BC_store.init () >>= fun repo -> 
+      BC_store.master repo >>= fun m_br -> 
+      M.of_adt OM.Empty >>= fun k ->
+      let cinfo = Irmin_unix.info "THE Ancestor" in
+      BC_store.update m_br ["state"] k ~info:cinfo
+    end
+  | [| me; "worker"; repon; rrepon |] ->
+    let repon = int_of_string repon in
+    let rrepon = int_of_string rrepon in
+    let module WM = WorkerModule(struct let r = repon let rr = rrepon end) in
+    Lwt_main.run begin
+      WM.main ()
+    end
+  | [| me; |] ->
+    let _ = Sys.command (Printf.sprintf "%s init" me) in
+    let rec aux i n =
+      match Unix.fork () with
+      | 0 ->
+        Unix.execv me [| me; "worker"; string_of_int i; string_of_int ((i+1) mod n) |]
+      | pid ->
+        if i < (n-1) then aux (i+1) n
+        else () in
+    aux 0 n_procs
+  | x -> exit(1)

@@ -737,15 +737,12 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
         end
 
     let with_init_remote_do remote_uri (m: 'a t) = 
-      Lwt_main.run 
-        begin
-          BC_store.init () >>= fun repo -> 
-          BC_store.master repo >>= fun m_br ->
-          BC_store.Sync.pull_exn m_br (Irmin.remote_uri remote_uri) `Set >>= fun () ->
-          BC_store.clone m_br "1_local" >>= fun t_br ->
-          let st = {master=m_br; local=t_br; name="1"; next_id=1} in
-          m st >>= fun (a, _) -> Lwt.return a
-        end
+      BC_store.init () >>= fun repo -> 
+      BC_store.master repo >>= fun m_br ->
+      BC_store.Sync.pull_exn m_br (Irmin.remote_uri remote_uri) `Set >>= fun () ->
+      BC_store.clone m_br "1_local" >>= fun t_br ->
+      let st = {master=m_br; local=t_br; name="1"; next_id=1} in
+      m st >>= fun (a, _) -> Lwt.return a
 
     let fork_from_remote (m: 'a t) : unit t = fun (st: st) ->
       let thread_f () = 
