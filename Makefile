@@ -9,7 +9,7 @@ bench: build
 	jbuilder build bench/inputq.exe
 	jbuilder build bench/storage.exe
 	jbuilder build bench/sworker.exe
-	jbuilder build bench/mworker.exe
+	jbuilder build bench/mworker.bc
 
 clean:
 	jbuilder clean
