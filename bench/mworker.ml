@@ -75,21 +75,25 @@ module MagicModule (Hack: sig val i: int end) = struct
     Vpst.with_init_remote_do mrui @@ funf ()
 end
 
-let main_f =
-  let module Vpst = MMain.Vpst in
-  let (>>=) = Vpst.bind in
-  Vpst.get_latest_version () >>= fun t0 -> 
+let main_thread () = 
+  let open MMain in
+  BC_store.init () >>= fun repo -> 
+  BC_store.master repo >>= fun m_br -> 
+  M.of_adt OM.Empty >>= fun k ->
+  let cinfo = Irmin_unix.info "THE Ancestor" in
+  BC_store.update m_br ["state"] k ~info:cinfo >>= fun () ->
   let rec aux i n =
-    match Lwt_unix.fork () with
+    match Unix.fork () with
     | 0 -> 
       let module MM = MagicModule(struct let i = i end) in
       MM.run ()
     | pid ->
+      Lwt_log.info "Forked" >>= fun () ->
       if i < (n-1) then aux (i+1) n
       else () in
-  let _ = aux 0 n_procs in
-  Vpst.return ()
+  Lwt.return @@ aux 0 n_procs
 
-let main () = MMain.Vpst.with_init_version_do MMain.OM.Empty main_f
-
-let () = main ()
+let () = 
+  Lwt.async main_thread;
+  let (t, _) = Lwt.wait () in
+  Lwt_main.run t
