@@ -5,19 +5,18 @@
         (inputq
         storage
         sworker
-        mworker))
+        mworker
+        mtest))
     (modules 
         (inputq 
         storage
         sworker
         mworker
-        protocol
+        mtest
+        bench
         mset_avltree))
     (libraries 
         (lwt 
         lwt.unix
         irmin
-        irmin-unix))
-    (preprocess
-        (pps 
-            (lwt.ppx)))))
+        irmin-unix))))

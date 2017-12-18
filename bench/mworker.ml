@@ -7,7 +7,9 @@ git daemon --export-all --reuseaddr --verbose --enable=receive-pack
 
 *)
 
-Printexc.record_backtrace true
+let processing_time = Bench.processing_time (* simulated by cpu sleep *)
+let sync_freq = Bench.m_sync_freq
+let n_procs = Bench.m_replicas
 
 module U = struct
   let string_of_list f l = "[ " ^ List.fold_left (fun a b -> a ^ (f b) ^ "; ") "" l ^ "]"
@@ -35,7 +37,6 @@ end
 module CInit = MkConfig(struct let root = "/tmp/repos/init.git" end) 
 module MInit = Mset_avltree.MakeVersioned(CInit)(IntAtom)
 
-let n_procs = 2
 
 open Lwt.Infix
 
@@ -54,31 +55,41 @@ module WorkerModule (Hack: sig val r: int val rr: int end) = struct
   let uri = "/tmp/repos/r" ^ string_of_int repon ^ ".git"
   let ruri = "git://localhost/tmp/repos/r" ^ string_of_int rrepon ^ ".git"
 
-  let mrui = "git://localhost" ^ CInit.root
+  let muri = "git://localhost" ^ CInit.root
 
   module C = MkConfig(struct let root = uri end) 
   module M = Mset_avltree.MakeVersioned(C)(IntAtom)
   module Vpst = M.Vpst
 
-  let rec inputq_handle input output =
-    let open Protocol in
+  let rec inputq_handle input output n =
+    let open Bench in
     let (>>=) = Vpst.bind in
     Vpst.liftLwt @@ Lwt_io.write_value output PopQ >>= fun () ->
     Vpst.liftLwt @@ Lwt_io.read_value input >>= fun (msg:message) ->
     match msg with
     | PoppedQ x ->
-      Vpst.get_latest_version () >>= fun v -> 
-      let v' = M.OM.add (Int64.of_int x) v in
-      Vpst.sync_remote_version ruri ~v:v' >>= fun _ ->
-      Vpst.liftLwt @@ Lwt_log.info_f "Stored %d\n" x >>= fun _ ->
-      inputq_handle input output
+      Vpst.get_latest_version () >>= fun v ->
+      Vpst.liftLwt @@ Lwt_unix.sleep processing_time >>= fun _ ->
+      let v' = M.OM.add x v in
+      (if n = 1 then Vpst.sync_remote_version ruri ~v:v' 
+      else Vpst.sync_next_version ~v:v')  >>= fun _ ->
+      Vpst.liftLwt @@ Lwt_log.info_f "Stored element %Ld" x >>= fun _ ->
+      inputq_handle input output ((n + 1) mod sync_freq)
+    | PoppedAll x -> Vpst.return ()
     | _ -> 
-      inputq_handle input output
+      inputq_handle input output n
 
   let main () =
     let handler (input, output) =
-      Vpst.with_init_remote_do mrui (inputq_handle input output) in
+      Vpst.with_init_forked_do (inputq_handle input output 0) in
     Lwt_io.with_connection inputq_address handler
+
+  let init () =
+    let open M in
+    BC_store.init () >>= fun repo -> 
+    BC_store.master repo >>= fun m_br ->
+    BC_store.Sync.pull_exn m_br (Irmin.remote_uri muri) `Set
+
 end
 
 let () = 
@@ -90,7 +101,19 @@ let () =
       BC_store.master repo >>= fun m_br -> 
       M.of_adt OM.Empty >>= fun k ->
       let cinfo = Irmin_unix.info "THE Ancestor" in
-      BC_store.update m_br ["state"] k ~info:cinfo
+      BC_store.update m_br ["state"] k ~info:cinfo >>= fun _ -> 
+      let rec aux i n =
+        let _ = Sys.command (Printf.sprintf "%s init worker %d" me i) in
+        if i < (n-1) then aux (i+1) n
+        else () in
+      aux 0 n_procs;
+      Lwt.return_unit
+    end
+  | [| me; "init"; "worker"; repon; |] ->
+    let repon = int_of_string repon in
+    let module WM = WorkerModule(struct let r = repon let rr = 0 end) in
+    Lwt_main.run begin
+      WM.init ()
     end
   | [| me; "worker"; repon; rrepon |] ->
     let repon = int_of_string repon in

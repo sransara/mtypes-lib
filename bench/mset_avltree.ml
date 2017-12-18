@@ -691,7 +691,6 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
     type t = Store.t
 
     let init ?root ?bare () =
-      Config.init ();
       let config = Irmin_git.config Config.root in
       Store.Repo.v config
 
@@ -716,6 +715,8 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
                next_id  : int}
     type 'a t = st -> ('a * st) Lwt.t
 
+    let info s = Irmin_unix.info "[repo %s] %s" Config.root s  
+
     let path = ["state"]
 
     let return (x : 'a) : 'a t = fun st -> Lwt.return (x,st)
@@ -729,36 +730,19 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
           BC_store.init () >>= fun repo -> 
           BC_store.master repo >>= fun m_br -> 
           M.of_adt v >>= fun k ->
-          let cinfo = Irmin_unix.info "creating state of master" in
+          let cinfo = info "creating state of master" in
           BC_store.update m_br path k ~info:cinfo >>= fun () ->
           BC_store.clone m_br "1_local" >>= fun t_br ->
           let st = {master=m_br; local=t_br; name="1"; next_id=1} in
           m st >>= fun (a,_) -> Lwt.return a
         end
 
-    let with_init_remote_do remote_uri (m: 'a t) = 
+    let with_init_forked_do (m: 'a t) = 
       BC_store.init () >>= fun repo -> 
       BC_store.master repo >>= fun m_br ->
-      BC_store.Sync.pull_exn m_br (Irmin.remote_uri remote_uri) `Set >>= fun () ->
       BC_store.clone m_br "1_local" >>= fun t_br ->
       let st = {master=m_br; local=t_br; name="1"; next_id=1} in
       m st >>= fun (a, _) -> Lwt.return a
-
-    let fork_from_remote (m: 'a t) : unit t = fun (st: st) ->
-      let thread_f () = 
-        let child_name = st.name^"_"^(string_of_int st.next_id) in
-        let parent_m_br = st.master in
-        (* Ideally, the following has to happen: *)
-        (* BC_store.clone_force parent_m_br m_name >>= fun m_br -> *)
-        (* But, we currently default to an SC mode. Master is global. *)
-        let m_br = parent_m_br in
-        BC_store.clone m_br (child_name^"_local") >>= fun t_br ->
-        let new_st = {master = m_br; local  = t_br; name = child_name; next_id = 1} in
-        m new_st in
-      begin
-        Lwt.async thread_f;
-        Lwt.return ((), {st with next_id=st.next_id+1})
-      end
 
     let fork_version (m: 'a t) : unit t = fun (st: st) ->
       let thread_f () = 
@@ -784,28 +768,28 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
     let sync_remote_version remote_uri ?v : OM.t t = fun (st: st) ->
       (* How do you commit the next version? Simply update path? *)
       (* 1. Commit to the local branch *)
-      let cinfo = Irmin_unix.info "committing local state" in
+      let cinfo = info "committing local state" in
       (match v with 
        | None -> Lwt.return ()
        | Some v -> 
          M.of_adt v >>= fun k -> 
          BC_store.update st.local path k cinfo) >>= fun () ->
 
+      (* 2.. Pull from remote to master *)
+      let cinfo = info (Printf.sprintf "Merging remote: %s" remote_uri) in
+      BC_store.Sync.pull st.master (Irmin.remote_uri remote_uri) (`Merge  cinfo) >>= fun _ ->
       (* 2. Merge local master to the local branch *)
-      let cinfo = Irmin_unix.info "Merging master into local" in
+      let cinfo = info "Merging master into local" in
       BC_store.merge st.master ~into:st.local ~info:cinfo >>= fun _ ->
-      (* 2.b Pull from remote  to master *)
-      let cinfo = Irmin_unix.info "Merging remote: %s" remote_uri in
-      BC_store.Sync.pull_exn st.master (Irmin.remote_uri remote_uri) (`Merge  cinfo) >>= fun () ->
       (* 3. Merge local branch to the local master *)
-      let cinfo = Irmin_unix.info "Merging local into master" in
+      let cinfo = info "Merging local into master" in
       BC_store.merge st.local ~into:st.master ~info:cinfo >>= fun _ ->
       get_latest_version () st
 
     let sync_next_version ?v : OM.t t = fun (st: st) ->
       (* How do you commit the next version? Simply update path? *)
       (* 1. Commit to the local branch *)
-      let cinfo = Irmin_unix.info "committing local state" in
+      let cinfo = info "committing local state" in
       (match v with 
        | None -> Lwt.return ()
        | Some v -> 
@@ -813,10 +797,10 @@ module MakeVersioned (Config: Config) (Atom: ATOM) = struct
          BC_store.update st.local path k cinfo) >>= fun () ->
 
       (* 2. Merge local master to the local branch *)
-      let cinfo = Irmin_unix.info "Merging master into local" in
+      let cinfo = info "Merging master into local" in
       BC_store.merge st.master ~into:st.local ~info:cinfo >>= fun _ ->
       (* 3. Merge local branch to the local master *)
-      let cinfo = Irmin_unix.info "Merging local into master" in
+      let cinfo = info "Merging local into master" in
       BC_store.merge st.local ~into:st.master ~info:cinfo >>= fun _ ->
       get_latest_version () st
 

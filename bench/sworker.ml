@@ -1,5 +1,7 @@
 open Lwt.Infix
 
+let processing_time = Bench.processing_time (* simulated by cpu sleep *)
+
 let () = Lwt_log.add_rule "*" Lwt_log.Info;;
 
 let inputq_address = 
@@ -12,11 +14,11 @@ let storage_address =
   let port =  4444 in
   Unix.ADDR_INET (address, port)
 
-let process x = Unix.sleep 1; x
+let process x = Unix.sleepf processing_time; x
 
 let storage_handle input output x =
   let processed_x = process x in
-  let open Protocol in
+  let open Bench in
   Lwt_io.write_value output (Store processed_x)  >>= fun () ->
   Lwt_io.read_value input >>= fun (msg:message) ->
   match msg with
@@ -24,16 +26,21 @@ let storage_handle input output x =
   | _ -> Lwt_log.info_f "Errr"
 
 let rec inputq_handle input output =
-  let open Protocol in
+  let open Bench in
   Lwt_io.write_value output PopQ >>= fun () ->
   Lwt_io.read_value input >>= fun (msg:message) ->
   (match msg with
-   | PoppedQ x ->
+    | PoppedQ x ->
       let handler (input, output) =
         Lwt.catch (fun () -> storage_handle input output x) (fun _exn -> Lwt.return_unit) in
-      Lwt_io.with_connection storage_address handler
-   | _ -> Lwt_log.info_f "Errr") >>= fun () ->
-  inputq_handle input output
+      Lwt_io.with_connection storage_address handler >>= fun _ ->
+      inputq_handle input output
+    | PoppedAll x -> 
+      Lwt.return_unit
+    | _ -> 
+      Lwt_log.info_f "Errr" >>= fun _ ->
+      inputq_handle input output
+   )
 
 let client =
   let handler (input, output) =

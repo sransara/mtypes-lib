@@ -1,0 +1,33 @@
+let max_pops = 1000
+let processing_time = 0.001
+let m_replicas = 4
+let m_sync_freq = (max_pops / m_replicas) / 5
+
+sworker 1:
+inputq.exe: main: Execution time: 1.655895 Throuput: 603.903027
+
+mworker:
+inputq.exe: main: Execution time: 98.010031 Throuput: 10.203037
+
+
+let max_pops = 1000
+let processing_time = 0.1
+let m_replicas = 4
+let m_sync_freq = (max_pops / m_replicas) / 5
+
+sworker 1:
+inputq.exe: main: Execution time: 100.642767 Throuput: 9.936134
+
+mworker:
+inputq.exe: main: Execution time: 102.604419 Throuput: 9.746169
+
+
+
+
+
+
+
+
+
+
+

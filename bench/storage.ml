@@ -10,14 +10,14 @@ let sockaddr =
 module Gset : sig 
   type t
   val create: t
-  val add: t -> int  -> int
-  val all: t -> int list
+  val add: t -> int64  -> int
+  val all: t -> int64 list
 end 
 = struct
-  module IntSet = Set.Make(struct type t = int let compare = compare end)
+  module IntSet = Set.Make(Int64)
   type t = {mutable set: IntSet.t; mutable counter: int}
   let create = {set = IntSet.empty; counter = 0}
-  let add s x = 
+  let add s (x:int64) = 
     s.set <- IntSet.add x s.set;
     s.counter <- s.counter + 1;
     s.counter
@@ -27,16 +27,12 @@ end
 let gset = Gset.create
 
 let handle_msg msg =
-  let open Protocol in
+  let open Bench in
   match msg with
   | Store x ->
-    Lwt_log.ign_info_f "Storing %d" x;
+    
     Stored (Gset.add gset x)
   | _ -> Error "Unknown command"
-
-let handle_s_msg msg =
-  let open Protocol in
-  msg |> string_to_message |> handle_msg |> message_to_string
 
 let rec handle input output =
   Lwt_io.read_value input >>= fun msg ->
