@@ -1,7 +1,5 @@
 open Lwt.Infix
 
-let processing_time = Bench.processing_time (* simulated by cpu sleep *)
-
 let () = Lwt_log.add_rule "*" Lwt_log.Info;;
 
 let inputq_address = 
@@ -14,7 +12,7 @@ let storage_address =
   let port =  4444 in
   Unix.ADDR_INET (address, port)
 
-let process x = Unix.sleepf processing_time; x
+let process x = x
 
 let storage_handle input output x =
   let processed_x = process x in

@@ -1,33 +1,15 @@
 let max_pops = 1000
-let processing_time = 0.001
 let m_replicas = 4
-let m_sync_freq = (max_pops / m_replicas) / 5
+let m_sync_freq = 125
 
-sworker 1:
-inputq.exe: main: Execution time: 1.655895 Throuput: 603.903027
+sworker n=1:
+inputq.exe: main: Execution time: 1.044805 Throuput: 957.116572
 
-mworker:
-inputq.exe: main: Execution time: 98.010031 Throuput: 10.203037
+sworker n=4:
+inputq.exe: main: Execution time: 1.060591 Throuput: 942.870335
 
+mworker sync=1:
+inputq.exe: main: Execution time: 38.670922 Throuput: 25.859223
 
-let max_pops = 1000
-let processing_time = 0.1
-let m_replicas = 4
-let m_sync_freq = (max_pops / m_replicas) / 5
-
-sworker 1:
-inputq.exe: main: Execution time: 100.642767 Throuput: 9.936134
-
-mworker:
-inputq.exe: main: Execution time: 102.604419 Throuput: 9.746169
-
-
-
-
-
-
-
-
-
-
-
+mworker sync=2:
+inputq.exe: main: Execution time: 53.738545 Throuput: 18.608617

@@ -7,7 +7,6 @@ git daemon --export-all --reuseaddr --verbose --enable=receive-pack
 
 *)
 
-let processing_time = Bench.processing_time (* simulated by cpu sleep *)
 let sync_freq = Bench.m_sync_freq
 let n_procs = Bench.m_replicas
 
@@ -69,11 +68,10 @@ module WorkerModule (Hack: sig val r: int val rr: int end) = struct
     match msg with
     | PoppedQ x ->
       Vpst.get_latest_version () >>= fun v ->
-      Vpst.liftLwt @@ Lwt_unix.sleep processing_time >>= fun _ ->
       let v' = M.OM.add x v in
       (if n = 1 then Vpst.sync_remote_version ruri ~v:v' 
       else Vpst.sync_next_version ~v:v')  >>= fun _ ->
-      Vpst.liftLwt @@ Lwt_log.info_f "Stored element %Ld" x >>= fun _ ->
+      Vpst.liftLwt @@ Lwt_log.info_f "Stored element %Ld in %d" x repon >>= fun _ ->
       inputq_handle input output ((n + 1) mod sync_freq)
     | PoppedAll x -> Vpst.return ()
     | _ -> 

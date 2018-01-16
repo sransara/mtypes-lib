@@ -7,31 +7,33 @@ let sockaddr =
   let port =  4444 in
   Unix.ADDR_INET (address, port)
 
-module Gset : sig 
-  type t
-  val create: t
-  val add: t -> int64  -> int
-  val all: t -> int64 list
-end 
-= struct
-  module IntSet = Set.Make(Int64)
-  type t = {mutable set: IntSet.t; mutable counter: int}
-  let create = {set = IntSet.empty; counter = 0}
-  let add s (x:int64) = 
-    s.set <- IntSet.add x s.set;
-    s.counter <- s.counter + 1;
-    s.counter
-  let all s = IntSet.elements s.set
-end
+let counter = ref 0
+let file = "ff"
+module IntSet = Set.Make(Int64)
 
-let gset = Gset.create
+let init_file = 
+  let oc = open_out file in
+  Marshal.to_channel oc IntSet.empty [];
+  close_out oc
+
+let get_filename () = file ^ string_of_int !counter 
+
+let write_to_file s = 
+  let oc = open_out (get_filename ()) in
+  Marshal.to_channel oc s [];
+  counter := !counter + 1;
+  close_out oc
 
 let handle_msg msg =
   let open Bench in
   match msg with
   | Store x ->
-    
-    Stored (Gset.add gset x)
+    let ic = open_in file in
+    let s = Marshal.from_channel ic in
+    close_in ic;
+    let s' = IntSet.add x s in
+    write_to_file s';
+    Stored !counter
   | _ -> Error "Unknown command"
 
 let rec handle input output =
