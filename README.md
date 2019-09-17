@@ -1,1 +1,2 @@
-# mtypes-lib :: Mergeable types library
+# mtypes-lib 
+### Exploring 3 way merge algorithms for purely functional datastructures.
